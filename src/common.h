@@ -18,4 +18,7 @@
        __typeof__ (b) _b = (b); \
        _a < _b ? _a : _b; })
 
+#define CUDA_BLOCK_DIM_1D(n) (min((n+32-1)/32, 1024))
+#define CUDA_GRID_DIM_1D(n) ((n+1024-1)/1024)
+
 #endif

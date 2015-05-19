@@ -7,3 +7,6 @@ build = "build.rs"
 [lib]
 name = "rembrandt_kernels"
 path = "lib.rs"
+
+[dependencies.cuda]
+path = "../libcuda"

@@ -8,7 +8,7 @@ NVCC := $(CUDA_HOME)/bin/nvcc
 NVCC_FLAGS := -arch=sm_50 -O3 -Xcompiler '-fPIC' -I$(SRC_PREFIX) -I$(CUDA_HOME)/include
 
 TARGET_LIB := librembrandt_kernels_cuda.a
-OBJECTS := map_kernels.o reduce_kernels.o
+OBJECTS := image_kernels.o map_kernels.o map_numerical_kernels.o reduce_kernels.o
 
 .PHONY: all clean
 

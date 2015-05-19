@@ -1,8 +1,26 @@
+extern crate cuda;
+
+use cuda::ffi::runtime::{cudaStream_t};
+
+/*#[repr(C)]
 struct cudaStream_s;
-pub type cudaStream_t = *mut cudaStream_s;
+#[allow(non_camel_case_types)]
+pub type cudaStream_t = *mut cudaStream_s;*/
 
 #[link(name = "rembrandt_kernels_cuda", kind = "static")]
 extern "C" {
+  // Image processing kernels.
+  pub fn rembrandt_kernel_image_cast_to_float(
+      width: i32, height: i32, channels: i32,
+      image_bytes: *const u8,
+      image: *mut f32,
+      stream: cudaStream_t);
+  pub fn rembrandt_kernel_image_interleaved_cast_to_float(
+      width: i32, height: i32, channels: i32,
+      image_bytes: *const u8,
+      image: *mut f32,
+      stream: cudaStream_t);
+
   // General purpose map kernels.
   pub fn rembrandt_kernel_map_set_constant_float(
       n: i32,
@@ -16,6 +34,14 @@ extern "C" {
       stream: cudaStream_t);
 
   // Numerical (single-precision) map kernels.
+  pub fn rembrandt_kernel_map_relu_activation(
+      n: i32,
+      x: *mut f32,
+      stream: cudaStream_t);
+  pub fn rembrandt_kernel_map_sigmoid_activation(
+      n: i32,
+      x: *mut f32,
+      stream: cudaStream_t);
   pub fn rembrandt_kernel_map_kahan_sum_update(
       n: i32,
       x: *const f32,
