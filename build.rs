@@ -23,7 +23,7 @@ fn main() {
   run(&mut cmd);
 
   println!("cargo:root={}", dst.display());
-  println!("cargo:rustc-flags=-L /usr/local/cuda/lib64 -L {} -l static=rembrandt_kernels_cuda -l dylib=cudart -l dylib=cublas", dst.display());
+  println!("cargo:rustc-flags=-L {} -l static=rembrandt_kernels_cuda", dst.display());
 }
 
 fn run(cmd: &mut Command) {
