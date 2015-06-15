@@ -1,5 +1,6 @@
 #include "common.h"
 #include <cuda_runtime_api.h>
+#include <float.h>
 #include <stdint.h>
 
 __global__ void image_cast_to_float_kernel(
@@ -90,15 +91,16 @@ __global__ void caffe_im2col_kernel(const int n, const float* data_im,
   }
 }
 
-extern "C" void rembrandt_kernel_im2col(
+extern "C" void rembrandt_kernel_image_im2col(
     const float *data_im,
     int width, int height, int channels,
     int conv_diam, int conv_stride,
-    float *data_col)
+    float *data_col,
+    cudaStream_t stream)
 {
-  int conv_pad = conv_diam / 2;
   int kernel_w = conv_diam;
   int kernel_h = conv_diam;
+  int conv_pad = conv_diam / 2;
   int pad_w = conv_pad;
   int pad_h = conv_pad;
   int stride_w = conv_stride;
@@ -109,7 +111,7 @@ extern "C" void rembrandt_kernel_im2col(
   int height_col = (height + 2 * pad_h - kernel_h) / stride_h + 1;
   int width_col = (width + 2 * pad_w - kernel_w) / stride_w + 1;
   int num_kernels = channels * height_col * width_col;
-  caffe_im2col_kernel<<<(num_kernels+1024-1)/1024, 1024>>>(
+  caffe_im2col_kernel<<<(num_kernels+1024-1)/1024, 1024, 0, stream>>>(
       num_kernels,
       data_im,
       height, width,
@@ -164,19 +166,97 @@ __global__ void caffe_col2im_kernel(const int n, const float* data_col,
   }
 }
 
-void col2im_gpu(const float* data_col, const int channels,
-    const int height, const int width, const int patch_h, const int patch_w,
-    const int pad_h, const int pad_w, const int stride_h,
-    const int stride_w, float* data_im) {
+extern "C" void rembrandt_kernel_image_col2im(
+    //const float* data_col, const int channels,
+    //const int height, const int width, const int patch_h, const int patch_w,
+    //const int pad_h, const int pad_w, const int stride_h,
+    //const int stride_w, float* data_im) {
+    const float *data_col,
+    int width, int height, int channels,
+    int conv_diam, int conv_stride,
+    float *data_im,
+    cudaStream_t stream)
+{
+  int patch_w = conv_diam;
+  int patch_h = conv_diam;
+  int conv_pad = conv_diam / 2;
+  int pad_w = conv_pad;
+  int pad_h = conv_pad;
+  int stride_w = conv_stride;
+  int stride_h = conv_stride;
+
   int height_col = (height + 2 * pad_h - patch_h) / stride_h + 1;
   int width_col = (width + 2 * pad_w - patch_w) / stride_w + 1;
   int num_kernels = channels * height * width;
   // To avoid involving atomic operations, we will launch one kernel per
   // bottom dimension, and then in the kernel add up the top dimensions.
   // NOLINT_NEXT_LINE(whitespace/operators)
-  caffe_col2im_kernel<<<(num_kernels+1024-1)/1024, 1024>>>(
+  caffe_col2im_kernel<<<(num_kernels+1024-1)/1024, 1024, 0, stream>>>(
       num_kernels, data_col, height, width, channels, patch_h, patch_w,
       pad_h, pad_w, stride_h, stride_w,
       height_col, width_col, data_im);
+  CUDA_POST_KERNEL_CHECK;
+}
+
+__global__ void caffe_max_pool(
+    const int nthreads, const float* bottom_data,
+    const int num, const int channels, const int height,
+    const int width, const int pooled_height, const int pooled_width,
+    const int kernel_h, const int kernel_w, const int stride_h,
+    const int stride_w, const int pad_h, const int pad_w,
+    //float* top_data, int* mask, float* top_mask)
+    float *top_data)
+{
+  //CUDA_KERNEL_LOOP(index, nthreads) {
+  int index = threadIdx.x + blockIdx.x * blockDim.x;
+  if (index < nthreads) {
+    int pw = index % pooled_width;
+    int ph = (index / pooled_width) % pooled_height;
+    int c = (index / pooled_width / pooled_height) % channels;
+    int n = index / pooled_width / pooled_height / channels;
+    int hstart = ph * stride_h - pad_h;
+    int wstart = pw * stride_w - pad_w;
+    int hend = min(hstart + kernel_h, height);
+    int wend = min(wstart + kernel_w, width);
+    hstart = max(hstart, 0);
+    wstart = max(wstart, 0);
+    float maxval = -FLT_MAX;
+    int maxidx = -1;
+    bottom_data += (n * channels + c) * height * width;
+    for (int h = hstart; h < hend; ++h) {
+      for (int w = wstart; w < wend; ++w) {
+        if (bottom_data[h * width + w] > maxval) {
+          maxidx = h * width + w;
+          maxval = bottom_data[maxidx];
+        }
+      }
+    }
+    top_data[index] = maxval;
+    /*if (mask) {
+      mask[index] = maxidx;
+    } else {
+      top_mask[index] = maxidx;
+    }*/
+  }
+}
+
+extern "C" void rembrandt_kernel_image_max_pool(
+    const float *src_data,
+    int width, int height, int channels,
+    int pool_diam, int pool_stride, int pool_pad,
+    float *dst_data,
+    cudaStream_t stream)
+{
+  int pooled_width = (width + 2 * pool_pad - pool_diam + pool_stride - 1) / pool_stride + 1;
+  int pooled_height = (height + 2 * pool_pad - pool_diam + pool_stride - 1) / pool_stride + 1;
+  int count = pooled_width * pooled_height * channels;
+  caffe_max_pool<<<(count+1024-1)/1024, 1024, 0, stream>>>(
+      count, src_data,
+      1, channels, height, width, 
+      pooled_height, pooled_width,
+      pool_diam, pool_diam,
+      pool_stride, pool_stride,
+      pool_pad, pool_pad,
+      dst_data);
   CUDA_POST_KERNEL_CHECK;
 }

@@ -2,11 +2,6 @@ extern crate cuda;
 
 use cuda::ffi::runtime::{cudaStream_t};
 
-/*#[repr(C)]
-struct cudaStream_s;
-#[allow(non_camel_case_types)]
-pub type cudaStream_t = *mut cudaStream_s;*/
-
 #[link(name = "rembrandt_kernels_cuda", kind = "static")]
 extern "C" {
   // Image processing kernels.
@@ -19,6 +14,24 @@ extern "C" {
       width: i32, height: i32, channels: i32,
       image_bytes: *const u8,
       image: *mut f32,
+      stream: cudaStream_t);
+  pub fn rembrandt_kernel_image_im2col(
+      image: *const f32,
+      width: i32, height: i32, channels: i32,
+      conv_diam: i32, conv_stride: i32,
+      col: *mut f32,
+      stream: cudaStream_t);
+  pub fn rembrandt_kernel_image_col2im(
+      col: *const f32,
+      width: i32, height: i32, channels: i32,
+      conv_diam: i32, conv_stride: i32,
+      image: *mut f32,
+      stream: cudaStream_t);
+  pub fn rembrandt_kernel_image_max_pool(
+      src: *const f32,
+      width: i32, height: i32, channels: i32,
+      pool_diam: i32, pool_stride: i32, pool_pad: i32,
+      dst: *mut f32,
       stream: cudaStream_t);
 
   // General purpose map kernels.
@@ -60,7 +73,8 @@ extern "C" {
       n: i32,
       x: *const f32,
       max_block: *mut f32,
-      idx_block: *mut i32,
+      //idx_block: *mut i32,
+      idx_block: *mut f32,
       stream: cudaStream_t);
   pub fn rembrandt_kernel_blockreduce_argmin_float(
       n: i32,
