@@ -17,9 +17,10 @@ extern "C" void rembrandt_kernel_map_relu_activation(
     float *x,
     cudaStream_t stream)
 {
-  dim3 block_dim(CUDA_BLOCK_DIM_1D(n));
+  /*dim3 block_dim(CUDA_BLOCK_DIM_1D(n));
   dim3 grid_dim(CUDA_GRID_DIM_1D(n));
-  map_relu_activation_kernel<<<grid_dim, block_dim, 0, stream>>>(n, x);
+  map_relu_activation_kernel<<<grid_dim, block_dim, 0, stream>>>(n, x);*/
+  map_relu_activation_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(n, x);
   CUDA_POST_KERNEL_CHECK;
 }
 
@@ -39,9 +40,10 @@ extern "C" void rembrandt_kernel_map_sigmoid_activation(
     float *x,
     cudaStream_t stream)
 {
-  dim3 block_dim(CUDA_BLOCK_DIM_1D(n));
+  /*dim3 block_dim(CUDA_BLOCK_DIM_1D(n));
   dim3 grid_dim(CUDA_GRID_DIM_1D(n));
-  map_sigmoid_activation_kernel<<<grid_dim, block_dim, 0, stream>>>(n, x);
+  map_sigmoid_activation_kernel<<<grid_dim, block_dim, 0, stream>>>(n, x);*/
+  map_sigmoid_activation_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(n, x);
   CUDA_POST_KERNEL_CHECK;
 }
 
