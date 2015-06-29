@@ -28,10 +28,19 @@ extern "C" {
       image: *mut f32,
       stream: cudaStream_t);
   pub fn rembrandt_kernel_image_max_pool(
-      src: *const f32,
+      src_data: *const f32,
       width: i32, height: i32, channels: i32,
       pool_diam: i32, pool_stride: i32, pool_pad: i32,
-      dst: *mut f32,
+      dst_data: *mut f32,
+      dst_mask: *mut i32,
+      stream: cudaStream_t);
+  pub fn rembrandt_kernel_image_max_pool_backward(
+      src_data: *const f32,
+      src_mask: *const i32,
+      width: i32, height: i32, channels: i32,
+      pool_diam: i32, pool_stride: i32, pool_pad: i32,
+      dst_data: *mut f32,
+      gradient_scale: f32,
       stream: cudaStream_t);
 
   // General purpose map kernels.

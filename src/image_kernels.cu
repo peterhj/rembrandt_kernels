@@ -204,8 +204,7 @@ __global__ void caffe_max_pool(
     const int width, const int pooled_height, const int pooled_width,
     const int kernel_h, const int kernel_w, const int stride_h,
     const int stride_w, const int pad_h, const int pad_w,
-    //float* top_data, int* mask, float* top_mask)
-    float *top_data)
+    float *top_data, int *mask)
 {
   //CUDA_KERNEL_LOOP(index, nthreads) {
   int index = threadIdx.x + blockIdx.x * blockDim.x;
@@ -232,11 +231,7 @@ __global__ void caffe_max_pool(
       }
     }
     top_data[index] = maxval;
-    /*if (mask) {
-      mask[index] = maxidx;
-    } else {
-      top_mask[index] = maxidx;
-    }*/
+    mask[index] = maxidx;
   }
 }
 
@@ -245,6 +240,7 @@ extern "C" void rembrandt_kernel_image_max_pool(
     int width, int height, int channels,
     int pool_diam, int pool_stride, int pool_pad,
     float *dst_data,
+    int *dst_mask,
     cudaStream_t stream)
 {
   int pooled_width = (width + 2 * pool_pad - pool_diam + pool_stride - 1) / pool_stride + 1;
@@ -257,6 +253,70 @@ extern "C" void rembrandt_kernel_image_max_pool(
       pool_diam, pool_diam,
       pool_stride, pool_stride,
       pool_pad, pool_pad,
-      dst_data);
+      dst_data, dst_mask);
+  CUDA_POST_KERNEL_CHECK;
+}
+
+__global__ void caffe_max_pool_backward(
+    const int nthreads,
+    const float* top_diff, const int* mask,
+    const int num, const int channels, const int height, const int width,
+    const int pooled_height, const int pooled_width,
+    const int kernel_h, const int kernel_w,
+    const int stride_h, const int stride_w,
+    const int pad_h, const int pad_w,
+    float* bottom_diff, float gradient_scale)
+{
+  //CUDA_KERNEL_LOOP(index, nthreads) {
+  int index = threadIdx.x + blockIdx.x * blockDim.x;
+  if (index < nthreads) {
+    // find out the local index
+    // find out the local offset
+    int w = index % width;
+    int h = (index / width) % height;
+    int c = (index / width / height) % channels;
+    int n = index / width / height / channels;
+    int phstart =
+        (h + pad_h < kernel_h) ? 0 : (h + pad_h - kernel_h) / stride_h + 1;
+    int phend = min((h + pad_h) / stride_h + 1, pooled_height);
+    int pwstart =
+        (w + pad_w < kernel_w) ? 0 : (w + pad_w - kernel_w) / stride_w + 1;
+    int pwend = min((w + pad_w) / stride_w + 1, pooled_width);
+    float gradient = 0.0;
+    int offset = (n * channels + c) * pooled_height * pooled_width;
+    top_diff += offset;
+    mask += offset;
+    for (int ph = phstart; ph < phend; ++ph) {
+      for (int pw = pwstart; pw < pwend; ++pw) {
+        if (mask[ph * pooled_width + pw] == h * width + w) {
+          gradient += top_diff[ph * pooled_width + pw];
+        }
+      }
+    }
+    bottom_diff[index] = gradient + gradient_scale * bottom_diff[index];
+  }
+}
+
+extern "C" void rembrandt_kernel_image_max_pool_backward(
+    const float *src_data,
+    const int *src_mask,
+    int width, int height, int channels,
+    int pool_diam, int pool_stride, int pool_pad,
+    float *dst_data,
+    float gradient_scale,
+    cudaStream_t stream)
+{
+  int pooled_width = (width + 2 * pool_pad - pool_diam + pool_stride - 1) / pool_stride + 1;
+  int pooled_height = (height + 2 * pool_pad - pool_diam + pool_stride - 1) / pool_stride + 1;
+  int count = pooled_width * pooled_height * channels;
+  caffe_max_pool_backward<<<(count+1024-1)/1024, 1024, 0, stream>>>(
+      count, src_data, src_mask,
+      1, channels, height, width, 
+      pooled_height, pooled_width,
+      pool_diam, pool_diam,
+      pool_stride, pool_stride,
+      pool_pad, pool_pad,
+      dst_data,
+      gradient_scale);
   CUDA_POST_KERNEL_CHECK;
 }
