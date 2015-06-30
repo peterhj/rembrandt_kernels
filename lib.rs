@@ -55,6 +55,20 @@ extern "C" {
       stream: cudaStream_t);
 
   // Numerical (single-precision) map kernels.
+  pub fn rembrandt_kernel_map_exp(
+      x: *mut f32,
+      n: i32,
+      stream: cudaStream_t);
+  pub fn rembrandt_kernel_map_subtract_scalar(
+      x: *mut f32,
+      n: i32,
+      scalar: *const f32,
+      stream: cudaStream_t);
+  pub fn rembrandt_kernel_map_divide_scalar(
+      x: *mut f32,
+      n: i32,
+      scalar: *const f32,
+      stream: cudaStream_t);
   pub fn rembrandt_kernel_map_relu_activation(
       n: i32,
       x: *mut f32,
@@ -75,6 +89,12 @@ extern "C" {
       y_err: *const f32,
       s: *mut f32,
       stream: cudaStream_t);
+  pub fn rembrandt_kernel_map_softmax_cross_entropy_backprop(
+      z: *const f32,
+      n: i32,
+      truth_label: i32,
+      delta: *mut f32,
+      stream: cudaStream_t);
 
   // General purpose reduction kernels.
   pub fn rembrandt_kernel_blockreduce_argmax_float(
@@ -84,10 +104,16 @@ extern "C" {
       //idx_block: *mut i32,
       idx_block: *mut f32,
       stream: cudaStream_t);
-  pub fn rembrandt_kernel_blockreduce_argmin_float(
+  /*pub fn rembrandt_kernel_blockreduce_argmin_float(
       n: i32,
       x: *const f32,
       min_block: *mut f32,
+      idx_block: *mut i32,
+      stream: cudaStream_t);*/
+  pub fn rembrandt_kernel_blockreduce_argmax(
+      n: i32,
+      x: *const f32,
+      max_block: *mut f32,
       idx_block: *mut i32,
       stream: cudaStream_t);
 }
