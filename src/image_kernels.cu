@@ -265,7 +265,7 @@ __global__ void caffe_max_pool_backward(
     const int kernel_h, const int kernel_w,
     const int stride_h, const int stride_w,
     const int pad_h, const int pad_w,
-    float* bottom_diff, float gradient_scale)
+    float* bottom_diff)
 {
   //CUDA_KERNEL_LOOP(index, nthreads) {
   int index = threadIdx.x + blockIdx.x * blockDim.x;
@@ -293,7 +293,7 @@ __global__ void caffe_max_pool_backward(
         }
       }
     }
-    bottom_diff[index] = gradient + gradient_scale * bottom_diff[index];
+    bottom_diff[index] = gradient;
   }
 }
 
@@ -303,7 +303,6 @@ extern "C" void rembrandt_kernel_image_max_pool_backward(
     int width, int height, int channels,
     int pool_diam, int pool_stride, int pool_pad,
     float *dst_data,
-    float gradient_scale,
     cudaStream_t stream)
 {
   int pooled_width = (width + 2 * pool_pad - pool_diam + pool_stride - 1) / pool_stride + 1;
@@ -316,7 +315,6 @@ extern "C" void rembrandt_kernel_image_max_pool_backward(
       pool_diam, pool_diam,
       pool_stride, pool_stride,
       pool_pad, pool_pad,
-      dst_data,
-      gradient_scale);
+      dst_data);
   CUDA_POST_KERNEL_CHECK;
 }

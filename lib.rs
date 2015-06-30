@@ -40,7 +40,6 @@ extern "C" {
       width: i32, height: i32, channels: i32,
       pool_diam: i32, pool_stride: i32, pool_pad: i32,
       dst_data: *mut f32,
-      gradient_scale: f32,
       stream: cudaStream_t);
 
   // General purpose map kernels.
