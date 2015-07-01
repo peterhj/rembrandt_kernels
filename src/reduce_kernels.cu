@@ -97,3 +97,37 @@ extern "C" void rembrandt_kernel_blockreduce_argmax(
       n, x, max_block, idx_block);
   CUDA_POST_KERNEL_CHECK;
 }
+
+__global__ void blockreduce_sum_kernel(
+    const int n,
+    const float *x,
+    float *x_sum_block)
+{
+  __shared__ float cache[1024];
+  int i = threadIdx.x + blockIdx.x * blockDim.x;
+  int tid = threadIdx.x;
+  if (i < n) {
+    cache[tid] = x[i];
+  }
+  __syncthreads();
+  for (int s = 1; s < blockDim.x; s *= 2) {
+    if (tid % (2*s) == 0 && (i + s) < n) {
+      cache[tid] += cache[tid + s];
+    }
+    __syncthreads();
+  }
+  if (tid == 0) {
+    x_sum_block[blockIdx.x] = cache[0];
+  }
+}
+
+extern "C" void rembrandt_kernel_blockreduce_sum(
+    int n,
+    const float *x,
+    float *sum_block,
+    cudaStream_t stream)
+{
+  blockreduce_sum_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(
+      n, x, sum_block);
+  CUDA_POST_KERNEL_CHECK;
+}

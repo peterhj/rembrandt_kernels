@@ -73,6 +73,11 @@ extern "C" {
       n: i32,
       x: *mut f32,
       stream: cudaStream_t);
+  pub fn rembrandt_kernel_map_relu_activation_backprop(
+      z: *const f32,
+      n: i32,
+      delta: *mut f32,
+      stream: cudaStream_t);
   pub fn rembrandt_kernel_map_sigmoid_activation(
       n: i32,
       x: *mut f32,
@@ -95,6 +100,23 @@ extern "C" {
       truth_label: i32,
       delta: *mut f32,
       stream: cudaStream_t);
+  pub fn rembrandt_kernel_map_dropout(
+      x: *const f32,
+      n: i32,
+      threshold: f32,
+      scale: f32,
+      rand: *const f32,
+      z: *mut f32,
+      mask: *mut i32,
+      stream: cudaStream_t);
+  pub fn rembrandt_kernel_map_dropout_backprop(
+      z: *const f32,
+      n: i32,
+      threshold: f32,
+      scale: f32,
+      mask: *const i32,
+      delta: *mut f32,
+      stream: cudaStream_t);
 
   // General purpose reduction kernels.
   pub fn rembrandt_kernel_blockreduce_argmax_float(
@@ -115,5 +137,10 @@ extern "C" {
       x: *const f32,
       max_block: *mut f32,
       idx_block: *mut i32,
+      stream: cudaStream_t);
+  pub fn rembrandt_kernel_blockreduce_sum(
+      n: i32,
+      x: *const f32,
+      sum_block: *mut f32,
       stream: cudaStream_t);
 }

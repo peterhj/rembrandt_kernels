@@ -95,6 +95,27 @@ extern "C" void rembrandt_kernel_map_relu_activation(
   CUDA_POST_KERNEL_CHECK;
 }
 
+__global__ void map_relu_activation_backprop_kernel(
+    const float *z,
+    int n,
+    float *delta)
+{
+  int i = threadIdx.x + blockIdx.x * blockDim.x;
+  if (i < n) {
+    delta[i] = delta[i] * (z[i] > 0.0);
+  }
+}
+
+extern "C" void rembrandt_kernel_map_relu_activation_backprop(
+    const float *z,
+    int n,
+    float *delta,
+    cudaStream_t stream)
+{
+  map_relu_activation_backprop_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(z, n, delta);
+  CUDA_POST_KERNEL_CHECK;
+}
+
 __global__ void map_sigmoid_activation_kernel(
     int n,
     float *x)
@@ -178,5 +199,63 @@ extern "C" void rembrandt_kernel_map_softmax_cross_entropy_backprop(
     cudaStream_t stream)
 {
   map_softmax_cross_entropy_backprop_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(z, n, truth_label, delta);
+  CUDA_POST_KERNEL_CHECK;
+}
+
+__global__ void map_dropout_kernel(
+    const float *x,
+    int n,
+    float threshold,
+    float scale,
+    const float *rand,
+    float *z,
+    int *mask)
+{
+  int i = threadIdx.x + blockIdx.x * blockDim.x;
+  if (i < n) {
+    int m = rand[i] > threshold;
+    z[i] = scale * x[i] * m;
+    mask[i] = m;
+  }
+}
+
+extern "C" void rembrandt_kernel_map_dropout(
+    const float *x,
+    int n,
+    float threshold,
+    float scale,
+    const float *rand,
+    float *z,
+    int *mask,
+    cudaStream_t stream)
+{
+  map_dropout_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(x, n, threshold, scale, rand, z, mask);
+  CUDA_POST_KERNEL_CHECK;
+}
+
+__global__ void map_dropout_backprop_kernel(
+    const float *z,
+    int n,
+    float threshold,
+    float scale,
+    const int *mask,
+    float *delta)
+{
+  int i = threadIdx.x + blockIdx.x * blockDim.x;
+  if (i < n) {
+    delta[i] = scale * z[i] * mask[i];
+  }
+}
+
+extern "C" void rembrandt_kernel_map_dropout_backprop(
+    const float *z,
+    int n,
+    float threshold,
+    float scale,
+    const int *mask,
+    float *delta,
+    cudaStream_t stream)
+{
+  map_dropout_backprop_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(z, n, threshold, scale, mask, delta);
   CUDA_POST_KERNEL_CHECK;
 }
