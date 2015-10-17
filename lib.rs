@@ -1,9 +1,23 @@
 extern crate cuda;
+extern crate libc;
 
 use cuda::ffi::runtime::{cudaStream_t};
 
+use libc::{c_int};
+
 #[link(name = "rembrandt_kernels_cuda", kind = "static")]
 extern "C" {
+  // Batch map kernels.
+  pub fn rembrandt_kernel_batch_map_softmax_cross_entropy_loss_backprop(
+      z: *const f32,
+      num_channels: c_int,
+      batch_size: c_int,
+      labels: *const i32,
+      delta: *mut f32,
+      minibatch_size: f32,
+      stream: cudaStream_t,
+  );
+
   // Image processing kernels.
   pub fn rembrandt_kernel_image_cast_to_float(
       width: i32, height: i32, channels: i32,
@@ -18,13 +32,13 @@ extern "C" {
   pub fn rembrandt_kernel_image_im2col(
       image: *const f32,
       width: i32, height: i32, channels: i32,
-      conv_diam: i32, conv_stride: i32,
+      conv_diam: i32, conv_stride: i32, conv_pad: i32,
       col: *mut f32,
       stream: cudaStream_t);
   pub fn rembrandt_kernel_image_col2im(
       col: *const f32,
       width: i32, height: i32, channels: i32,
-      conv_diam: i32, conv_stride: i32,
+      conv_diam: i32, conv_stride: i32, conv_pad: i32,
       image: *mut f32,
       stream: cudaStream_t);
   pub fn rembrandt_kernel_image_max_pool(
@@ -41,8 +55,21 @@ extern "C" {
       pool_diam: i32, pool_stride: i32, pool_pad: i32,
       dst_data: *mut f32,
       stream: cudaStream_t);
+  pub fn rembrandt_kernel_image_average_pool(
+      src_data: *const f32,
+      width: i32, height: i32, channels: i32,
+      pool_diam: i32, pool_stride: i32, pool_pad: i32,
+      dst_data: *mut f32,
+      stream: cudaStream_t);
+  pub fn rembrandt_kernel_image_average_pool_backward(
+      src_data: *const f32,
+      width: i32, height: i32, channels: i32,
+      pool_diam: i32, pool_stride: i32, pool_pad: i32,
+      dst_data: *mut f32,
+      stream: cudaStream_t);
 
   // General purpose map kernels.
+  pub fn rembrandt_kernel_map_noop(n: i32, stream: cudaStream_t);
   pub fn rembrandt_kernel_map_set_constant_float(
       n: i32,
       x: *mut f32,
@@ -52,6 +79,11 @@ extern "C" {
       n: i32,
       x: *mut i32,
       c: i32,
+      stream: cudaStream_t);
+  pub fn rembrandt_kernel_map_add_constant_float(
+      x: *mut f32,
+      n: i32,
+      c: f32,
       stream: cudaStream_t);
 
   // Numerical (single-precision) map kernels.
@@ -74,13 +106,27 @@ extern "C" {
       x: *mut f32,
       stream: cudaStream_t);
   pub fn rembrandt_kernel_map_relu_activation_backprop(
-      z: *const f32,
       n: i32,
+      z: *const f32,
       delta: *mut f32,
       stream: cudaStream_t);
   pub fn rembrandt_kernel_map_sigmoid_activation(
       n: i32,
       x: *mut f32,
+      stream: cudaStream_t);
+  pub fn rembrandt_kernel_map_sigmoid_activation_backprop(
+      n: i32,
+      z: *const f32,
+      delta: *mut f32,
+      stream: cudaStream_t);
+  pub fn rembrandt_kernel_map_tanh_activation(
+      n: i32,
+      x: *mut f32,
+      stream: cudaStream_t);
+  pub fn rembrandt_kernel_map_tanh_activation_backprop(
+      n: i32,
+      z: *const f32,
+      delta: *mut f32,
       stream: cudaStream_t);
   pub fn rembrandt_kernel_map_kahan_sum_update(
       n: i32,
@@ -94,7 +140,16 @@ extern "C" {
       y_err: *const f32,
       s: *mut f32,
       stream: cudaStream_t);
-  pub fn rembrandt_kernel_map_softmax_cross_entropy_backprop(
+  pub fn rembrandt_kernel_map_softmax_cross_entropy_loss(
+      z: *const f32,
+      n: i32,
+      truth_label: i32,
+      loss: *mut f32,
+      stream: cudaStream_t);
+  pub fn rembrandt_kernel_map_softmax_cross_entropy_loss_report(
+      loss: *const f32,
+      stream: cudaStream_t);
+  pub fn rembrandt_kernel_map_softmax_cross_entropy_loss_backprop(
       z: *const f32,
       n: i32,
       truth_label: i32,

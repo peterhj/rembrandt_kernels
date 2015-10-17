@@ -1,5 +1,6 @@
 #include "common.h"
 #include <cuda_runtime_api.h>
+#include <stdio.h>
 
 __global__ void map_exp_kernel(
     float *x,
@@ -60,6 +61,12 @@ __global__ void map_divide_scalar_kernel(
   if (i < n) {
     x[i] /= c[0];
   }
+  /*__syncthreads();
+  if (i == 0) {
+    printf("CUDA DEBUG: %f %f %f %f %f %f %f %f %f %f\n",
+        x[0], x[1], x[2], x[3], x[4],
+        x[5], x[6], x[7], x[8], x[9]);
+  }*/
 }
 
 extern "C" void rembrandt_kernel_map_divide_scalar(
@@ -88,31 +95,30 @@ extern "C" void rembrandt_kernel_map_relu_activation(
     float *x,
     cudaStream_t stream)
 {
-  /*dim3 block_dim(CUDA_BLOCK_DIM_1D(n));
-  dim3 grid_dim(CUDA_GRID_DIM_1D(n));
-  map_relu_activation_kernel<<<grid_dim, block_dim, 0, stream>>>(n, x);*/
   map_relu_activation_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(n, x);
   CUDA_POST_KERNEL_CHECK;
 }
 
 __global__ void map_relu_activation_backprop_kernel(
-    const float *z,
     int n,
+    const float *z,
     float *delta)
 {
   int i = threadIdx.x + blockIdx.x * blockDim.x;
   if (i < n) {
-    delta[i] = delta[i] * (z[i] > 0.0);
+    if (z[i] <= 0.0) {
+      delta[i] = 0.0;
+    }
   }
 }
 
 extern "C" void rembrandt_kernel_map_relu_activation_backprop(
-    const float *z,
     int n,
+    const float *z,
     float *delta,
     cudaStream_t stream)
 {
-  map_relu_activation_backprop_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(z, n, delta);
+  map_relu_activation_backprop_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(n, z, delta);
   CUDA_POST_KERNEL_CHECK;
 }
 
@@ -132,10 +138,71 @@ extern "C" void rembrandt_kernel_map_sigmoid_activation(
     float *x,
     cudaStream_t stream)
 {
-  /*dim3 block_dim(CUDA_BLOCK_DIM_1D(n));
-  dim3 grid_dim(CUDA_GRID_DIM_1D(n));
-  map_sigmoid_activation_kernel<<<grid_dim, block_dim, 0, stream>>>(n, x);*/
   map_sigmoid_activation_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(n, x);
+  CUDA_POST_KERNEL_CHECK;
+}
+
+__global__ void map_sigmoid_activation_backprop_kernel(
+    int n,
+    const float *z,
+    float *delta)
+{
+  int i = threadIdx.x + blockIdx.x * blockDim.x;
+  if (i < n) {
+    float z_i = z[i];
+    delta[i] = delta[i] * z_i * (1.0 - z_i);
+  }
+}
+
+extern "C" void rembrandt_kernel_map_sigmoid_activation_backprop(
+    int n,
+    const float *z,
+    float *delta,
+    cudaStream_t stream)
+{
+  map_sigmoid_activation_backprop_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(n, z, delta);
+  CUDA_POST_KERNEL_CHECK;
+}
+
+__global__ void map_tanh_activation_kernel(
+    int n,
+    float *x)
+{
+  int i = threadIdx.x + blockIdx.x * blockDim.x;
+  if (i < n) {
+    float x_i = x[i];
+    x[i] = tanhf(x_i);
+  }
+}
+
+extern "C" void rembrandt_kernel_map_tanh_activation(
+    int n,
+    float *x,
+    cudaStream_t stream)
+{
+  map_tanh_activation_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(n, x);
+  CUDA_POST_KERNEL_CHECK;
+}
+
+__global__ void map_tanh_activation_backprop_kernel(
+    int n,
+    const float *z,
+    float *delta)
+{
+  int i = threadIdx.x + blockIdx.x * blockDim.x;
+  if (i < n) {
+    float z_i = z[i];
+    delta[i] = delta[i] * (1.0 - z_i * z_i);
+  }
+}
+
+extern "C" void rembrandt_kernel_map_tanh_activation_backprop(
+    int n,
+    const float *z,
+    float *delta,
+    cudaStream_t stream)
+{
+  map_tanh_activation_backprop_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(n, z, delta);
   CUDA_POST_KERNEL_CHECK;
 }
 
@@ -159,23 +226,52 @@ extern "C" void rembrandt_kernel_map_kahan_sum_finish(
   assert(0 && "unimplemented!");
 }
 
-/*__global__ void map_softmax_cross_entropy_kernel(
-    int n
-    )
+__global__ void map_softmax_cross_entropy_loss_kernel(
+    const float *z,
+    int n,
+    int truth_label,
+    float *loss)
 {
   int i = threadIdx.x + blockIdx.x * blockDim.x;
   if (i < n) {
+    if (i == truth_label) {
+      loss[0] -= logf(z[i]);
+      //printf("CUDA DEBUG: loss: %g\n", loss[0]);
+    }
   }
 }
 
-extern "C" void rembrandt_kernel_map_softmax_cross_entropy(
+extern "C" void rembrandt_kernel_map_softmax_cross_entropy_loss(
+    const float *z,
+    int n,
+    int truth_label,
+    float *loss,
     cudaStream_t stream)
 {
-  map_softmax_cross_entropy_kernel<<<, , 0, stream>>>();
+  //printf("CUDA DEBUG: n %d label %d\n", n, truth_label);
+  map_softmax_cross_entropy_loss_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(
+      z, n, truth_label, loss);
   CUDA_POST_KERNEL_CHECK;
-}*/
+}
 
-__global__ void map_softmax_cross_entropy_backprop_kernel(
+__global__ void map_softmax_cross_entropy_loss_report_kernel(
+    const float *loss)
+{
+  int i = threadIdx.x + blockIdx.x * blockDim.x;
+  if (i == 0) {
+    printf("CUDA DEBUG: loss: %g\n", loss[0]);
+  }
+}
+
+extern "C" void rembrandt_kernel_map_softmax_cross_entropy_loss_report(
+    const float *loss,
+    cudaStream_t stream)
+{
+  map_softmax_cross_entropy_loss_report_kernel<<<1, 32, 0, stream>>>(loss);
+  CUDA_POST_KERNEL_CHECK;
+}
+
+__global__ void map_softmax_cross_entropy_loss_backprop_kernel(
     const float *z,
     int n,
     int truth_label,
@@ -183,22 +279,23 @@ __global__ void map_softmax_cross_entropy_backprop_kernel(
 {
   int i = threadIdx.x + blockIdx.x * blockDim.x;
   if (i < n) {
+    float z_i = z[i];
     if (i == truth_label) {
-      delta[i] = z[i] - 1.0;
+      delta[i] = z_i - 1.0;
     } else {
-      delta[i] = z[i];
+      delta[i] = z_i;
     }
   }
 }
 
-extern "C" void rembrandt_kernel_map_softmax_cross_entropy_backprop(
+extern "C" void rembrandt_kernel_map_softmax_cross_entropy_loss_backprop(
     const float *z,
     int n,
     int truth_label,
     float *delta,
     cudaStream_t stream)
 {
-  map_softmax_cross_entropy_backprop_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(z, n, truth_label, delta);
+  map_softmax_cross_entropy_loss_backprop_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(z, n, truth_label, delta);
   CUDA_POST_KERNEL_CHECK;
 }
 
@@ -213,7 +310,7 @@ __global__ void map_dropout_kernel(
 {
   int i = threadIdx.x + blockIdx.x * blockDim.x;
   if (i < n) {
-    int m = rand[i] > threshold;
+    int m = rand[i] >= threshold;
     z[i] = scale * x[i] * m;
     mask[i] = m;
   }

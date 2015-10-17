@@ -1,4 +1,23 @@
-use std::env;
+extern crate gcc;
+
+fn main() {
+  gcc::Config::new()
+    .compiler("/usr/local/cuda/bin/nvcc")
+    .opt_level(3)
+    .flag("-arch=sm_50")
+    .flag("-Xcompiler")
+    .flag("\'-fPIC\'")
+    .include("src")
+    .include("/usr/local/cuda/include")
+    .file("src/batch_map_kernels.cu")
+    .file("src/image_kernels.cu")
+    .file("src/map_kernels.cu")
+    .file("src/map_numerical_kernels.cu")
+    .file("src/reduce_kernels.cu")
+    .compile("librembrandt_kernels_cuda.a");
+}
+
+/*use std::env;
 use std::ffi::{OsStr};
 use std::os::unix::ffi::{OsStrExt};
 use std::path::{PathBuf};
@@ -32,4 +51,4 @@ fn run(cmd: &mut Command) {
              .status()
              .unwrap()
              .success());
-}
+}*/

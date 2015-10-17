@@ -22,9 +22,7 @@ extern "C" void rembrandt_kernel_image_cast_to_float(
     cudaStream_t stream)
 {
   int n = width * height * channels;
-  dim3 block_dim(CUDA_BLOCK_DIM_1D(n));
-  dim3 grid_dim(CUDA_GRID_DIM_1D(n));
-  image_cast_to_float_kernel<<<grid_dim, block_dim, 0, stream>>>(
+  image_cast_to_float_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(
       width, height, channels,
       image_bytes,
       image);
@@ -51,9 +49,7 @@ extern "C" void rembrandt_kernel_image_interleaved_cast_to_float(
     cudaStream_t stream)
 {
   int n = width * height * channels;
-  dim3 block_dim(CUDA_BLOCK_DIM_1D(n));
-  dim3 grid_dim(CUDA_GRID_DIM_1D(n));
-  image_interleaved_cast_to_float_kernel<<<grid_dim, block_dim, 0, stream>>>(
+  image_interleaved_cast_to_float_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(
       width, height, channels,
       image_bytes,
       image);
@@ -94,13 +90,12 @@ __global__ void caffe_im2col_kernel(const int n, const float* data_im,
 extern "C" void rembrandt_kernel_image_im2col(
     const float *data_im,
     int width, int height, int channels,
-    int conv_diam, int conv_stride,
+    int conv_diam, int conv_stride, int conv_pad,
     float *data_col,
     cudaStream_t stream)
 {
   int kernel_w = conv_diam;
   int kernel_h = conv_diam;
-  int conv_pad = conv_diam / 2;
   int pad_w = conv_pad;
   int pad_h = conv_pad;
   int stride_w = conv_stride;
@@ -173,13 +168,12 @@ extern "C" void rembrandt_kernel_image_col2im(
     //const int stride_w, float* data_im) {
     const float *data_col,
     int width, int height, int channels,
-    int conv_diam, int conv_stride,
+    int conv_diam, int conv_stride, int conv_pad,
     float *data_im,
     cudaStream_t stream)
 {
   int patch_w = conv_diam;
   int patch_h = conv_diam;
-  int conv_pad = conv_diam / 2;
   int pad_w = conv_pad;
   int pad_h = conv_pad;
   int stride_w = conv_stride;
@@ -307,9 +301,119 @@ extern "C" void rembrandt_kernel_image_max_pool_backward(
 {
   int pooled_width = (width + 2 * pool_pad - pool_diam + pool_stride - 1) / pool_stride + 1;
   int pooled_height = (height + 2 * pool_pad - pool_diam + pool_stride - 1) / pool_stride + 1;
-  int count = pooled_width * pooled_height * channels;
+  int count = width * height * channels;
   caffe_max_pool_backward<<<(count+1024-1)/1024, 1024, 0, stream>>>(
       count, src_data, src_mask,
+      1, channels, height, width, 
+      pooled_height, pooled_width,
+      pool_diam, pool_diam,
+      pool_stride, pool_stride,
+      pool_pad, pool_pad,
+      dst_data);
+  CUDA_POST_KERNEL_CHECK;
+}
+
+__global__ void caffe_average_pool(const int nthreads, const float* bottom_data,
+    const int num, const int channels, const int height,
+    const int width, const int pooled_height, const int pooled_width,
+    const int kernel_h, const int kernel_w, const int stride_h,
+    const int stride_w, const int pad_h, const int pad_w, float* top_data) {
+  //CUDA_KERNEL_LOOP(index, nthreads) {
+  int index = threadIdx.x + blockIdx.x * blockDim.x;
+  if (index < nthreads) {
+    int pw = index % pooled_width;
+    int ph = (index / pooled_width) % pooled_height;
+    int c = (index / pooled_width / pooled_height) % channels;
+    int n = index / pooled_width / pooled_height / channels;
+    int hstart = ph * stride_h - pad_h;
+    int wstart = pw * stride_w - pad_w;
+    int hend = min(hstart + kernel_h, height + pad_h);
+    int wend = min(wstart + kernel_w, width + pad_w);
+    int pool_size = (hend - hstart) * (wend - wstart);
+    hstart = max(hstart, 0);
+    wstart = max(wstart, 0);
+    hend = min(hend, height);
+    wend = min(wend, width);
+    float aveval = 0;
+    bottom_data += (n * channels + c) * height * width;
+    for (int h = hstart; h < hend; ++h) {
+      for (int w = wstart; w < wend; ++w) {
+        aveval += bottom_data[h * width + w];
+      }
+    }
+    top_data[index] = aveval / pool_size;
+  }
+}
+
+extern "C" void rembrandt_kernel_image_average_pool(
+    const float *src_data,
+    int width, int height, int channels,
+    int pool_diam, int pool_stride, int pool_pad,
+    float *dst_data,
+    cudaStream_t stream)
+{
+  int pooled_width = (width + 2 * pool_pad - pool_diam + pool_stride - 1) / pool_stride + 1;
+  int pooled_height = (height + 2 * pool_pad - pool_diam + pool_stride - 1) / pool_stride + 1;
+  int count = pooled_width * pooled_height * channels;
+  caffe_average_pool<<<(count+1024-1)/1024, 1024, 0, stream>>>(
+      count, src_data,
+      1, channels, height, width, 
+      pooled_height, pooled_width,
+      pool_diam, pool_diam,
+      pool_stride, pool_stride,
+      pool_pad, pool_pad,
+      dst_data);
+  CUDA_POST_KERNEL_CHECK;
+}
+
+__global__ void caffe_average_pool_backward(const int nthreads, const float* top_diff,
+    const int num, const int channels, const int height,
+    const int width, const int pooled_height, const int pooled_width,
+    const int kernel_h, const int kernel_w, const int stride_h,
+    const int stride_w, const int pad_h, const int pad_w,
+    float* bottom_diff) {
+  //CUDA_KERNEL_LOOP(index, nthreads) {
+  int index = threadIdx.x + blockIdx.x * blockDim.x;
+  if (index < nthreads) {
+    // find out the local index
+    // find out the local offset
+    int w = index % width + pad_w;
+    int h = (index / width) % height + pad_h;
+    int c = (index / width / height) % channels;
+    int n = index / width / height / channels;
+    int phstart = (h < kernel_h) ? 0 : (h - kernel_h) / stride_h + 1;
+    int phend = min(h / stride_h + 1, pooled_height);
+    int pwstart = (w < kernel_w) ? 0 : (w - kernel_w) / stride_w + 1;
+    int pwend = min(w / stride_w + 1, pooled_width);
+    float gradient = 0;
+    top_diff += (n * channels + c) * pooled_height * pooled_width;
+    for (int ph = phstart; ph < phend; ++ph) {
+      for (int pw = pwstart; pw < pwend; ++pw) {
+        // figure out the pooling size
+        int hstart = ph * stride_h - pad_h;
+        int wstart = pw * stride_w - pad_w;
+        int hend = min(hstart + kernel_h, height + pad_h);
+        int wend = min(wstart + kernel_w, width + pad_w);
+        int pool_size = (hend - hstart) * (wend - wstart);
+        gradient += top_diff[ph * pooled_width + pw] / pool_size;
+      }
+    }
+    bottom_diff[index] = gradient;
+  }
+}
+
+extern "C" void rembrandt_kernel_image_average_pool_backward(
+    const float *src_data,
+    int width, int height, int channels,
+    int pool_diam, int pool_stride, int pool_pad,
+    float *dst_data,
+    cudaStream_t stream)
+{
+  int pooled_width = (width + 2 * pool_pad - pool_diam + pool_stride - 1) / pool_stride + 1;
+  int pooled_height = (height + 2 * pool_pad - pool_diam + pool_stride - 1) / pool_stride + 1;
+  int count = width * height * channels;
+  caffe_average_pool_backward<<<(count+1024-1)/1024, 1024, 0, stream>>>(
+      count, src_data,
       1, channels, height, width, 
       pooled_height, pooled_width,
       pool_diam, pool_diam,
