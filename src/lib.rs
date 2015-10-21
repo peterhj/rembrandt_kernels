@@ -18,6 +18,16 @@ extern "C" {
       stream: cudaStream_t,
   );
 
+  // Batch reduce kernels.
+  pub fn rembrandt_kernel_batch_blockreduce_argmax(
+      xs: *const f32,
+      len: c_int,
+      batch_size: c_int,
+      xs_max: *mut f32,
+      xs_idx: *mut i32,
+      stream: cudaStream_t,
+  );
+
   // Image processing kernels.
   pub fn rembrandt_kernel_image_cast_to_float(
       width: i32, height: i32, channels: i32,
@@ -70,6 +80,11 @@ extern "C" {
 
   // General purpose map kernels.
   pub fn rembrandt_kernel_map_noop(n: i32, stream: cudaStream_t);
+  pub fn rembrandt_kernel_map_zero_mask(
+      xs: *mut f32,
+      n: i32,
+      zero_mask: *const f32,
+      stream: cudaStream_t);
   pub fn rembrandt_kernel_map_set_constant_float(
       n: i32,
       x: *mut f32,

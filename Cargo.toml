@@ -6,7 +6,7 @@ build = "build.rs"
 
 [lib]
 name = "rembrandt_kernels"
-path = "lib.rs"
+path = "src/lib.rs"
 
 [build-dependencies.gcc]
 path = "../gcc-rs"

@@ -7,13 +7,14 @@ fn main() {
     .flag("-arch=sm_50")
     .flag("-Xcompiler")
     .flag("\'-fPIC\'")
-    .include("src")
+    .include("src/cu")
     .include("/usr/local/cuda/include")
-    .file("src/batch_map_kernels.cu")
-    .file("src/image_kernels.cu")
-    .file("src/map_kernels.cu")
-    .file("src/map_numerical_kernels.cu")
-    .file("src/reduce_kernels.cu")
+    .file("src/cu/batch_map_kernels.cu")
+    .file("src/cu/batch_reduce_kernels.cu")
+    .file("src/cu/image_kernels.cu")
+    .file("src/cu/map_kernels.cu")
+    .file("src/cu/map_numerical_kernels.cu")
+    .file("src/cu/reduce_kernels.cu")
     .compile("librembrandt_kernels_cuda.a");
 }
 

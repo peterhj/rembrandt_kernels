@@ -10,6 +10,24 @@ extern "C" void rembrandt_kernel_map_noop(int n, cudaStream_t stream) {
   CUDA_POST_KERNEL_CHECK;
 }
 
+__global__ void map_zero_mask_kernel(
+    float *xs,
+    int n,
+    const float *zero_mask)
+{
+  int i = threadIdx.x + blockIdx.x * blockDim.x;
+  if (i < n) {
+    if (zero_mask[i] > 0.0) {
+      xs[i] = 0.0;
+    }
+  }
+}
+
+extern "C" void rembrandt_kernel_map_zero_mask(float *xs, int n, const float *zero_mask, cudaStream_t stream) {
+  map_zero_mask_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(xs, n, zero_mask);
+  CUDA_POST_KERNEL_CHECK;
+}
+
 __global__ void map_set_constant_float_kernel(
     int n,
     float *x,
