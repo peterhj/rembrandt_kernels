@@ -12,25 +12,28 @@ __global__ void batch_blockreduce_argmax_kernel(
 {
   __shared__ float cache[1024];
   __shared__ int cache_idx[1024];
-  int i = threadIdx.x + blockIdx.x * blockDim.x;
+  //int idx = threadIdx.x + blockIdx.x * blockDim.x;
   int tid = threadIdx.x;
   int block = blockIdx.x;
-  if (i < n) {
+  int i = tid + block * len;
+  if (tid < len && block < batch_size) {
+    //if (i < n) {
     cache[tid]      = xs[i];
     cache_idx[tid]  = tid;
-  }
-  __syncthreads();
-  for (int s = 1; s < blockDim.x; s *= 2) {
-    if (tid % (2*s) == 0 && (i + s) < n && cache[tid] < cache[tid + s]) {
-      cache[tid]      = cache[tid + s];
-      cache_idx[tid]  = cache_idx[tid + s];
-    }
+    //}
     __syncthreads();
-  }
-  if (tid == 0) {
-    x_max_block[block] = cache[0];
-    if (x_argmax_block != NULL) {
-      x_argmax_block[block] = cache_idx[0];
+    for (int s = 1; s < blockDim.x; s *= 2) {
+      if (tid % (2*s) == 0 && (tid + s) < len && cache[tid] < cache[tid + s]) {
+        cache[tid]      = cache[tid + s];
+        cache_idx[tid]  = cache_idx[tid + s];
+      }
+      __syncthreads();
+    }
+    if (tid == 0) {
+      x_max_block[block] = cache[0];
+      if (x_argmax_block != NULL) {
+        x_argmax_block[block] = cache_idx[0];
+      }
     }
   }
 }
@@ -44,8 +47,8 @@ extern "C" void rembrandt_kernel_batch_blockreduce_argmax(
     cudaStream_t stream)
 {
   // XXX: assert(len <= 1024);
-  int n = len * batch_size;
-  batch_blockreduce_argmax_kernel<<<batch_size, len, 0, stream>>>(
+  int n = batch_size * 1024;
+  batch_blockreduce_argmax_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(
       xs, len, batch_size, n, xs_max, xs_idx);
   CUDA_POST_KERNEL_CHECK;
 }
