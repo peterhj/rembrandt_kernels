@@ -2,32 +2,13 @@ extern crate cuda;
 extern crate libc;
 
 use cuda::ffi::runtime::{cudaStream_t};
-
 use libc::{c_int};
+
+//pub mod batch;
+pub mod ffi;
 
 #[link(name = "rembrandt_kernels_cuda", kind = "static")]
 extern "C" {
-  // Batch map kernels.
-  pub fn rembrandt_kernel_batch_map_softmax_cross_entropy_loss_backprop(
-      z: *const f32,
-      num_channels: c_int,
-      batch_size: c_int,
-      labels: *const i32,
-      delta: *mut f32,
-      minibatch_size: f32,
-      stream: cudaStream_t,
-  );
-
-  // Batch reduce kernels.
-  pub fn rembrandt_kernel_batch_blockreduce_argmax(
-      xs: *const f32,
-      len: c_int,
-      batch_size: c_int,
-      xs_max: *mut f32,
-      xs_idx: *mut i32,
-      stream: cudaStream_t,
-  );
-
   // Image processing kernels.
   pub fn rembrandt_kernel_image_cast_to_float(
       width: i32, height: i32, channels: i32,

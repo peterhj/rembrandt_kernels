@@ -47,8 +47,68 @@ extern "C" void rembrandt_kernel_batch_blockreduce_argmax(
     cudaStream_t stream)
 {
   // XXX: assert(len <= 1024);
+  // FIXME(20151022): could make more efficient use of blocks but w/e.
   int n = batch_size * 1024;
   batch_blockreduce_argmax_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(
       xs, len, batch_size, n, xs_max, xs_idx);
+  CUDA_POST_KERNEL_CHECK;
+}
+
+__global__ void batch_blockscan_prefix_sum_kernel(
+    const float *xs,
+    int len,
+    int batch_size,
+    float *xs_prefix_sum)
+{
+  // XXX: See:
+  // <http://www.cs.cmu.edu/~guyb/papers/Ble93.pdf>
+  // <http://http.developer.nvidia.com/GPUGems3/gpugems3_ch39.html>
+  __shared__ float cache[1024];
+  int tid = threadIdx.x;
+  int block = blockIdx.x;
+  int i = tid + block * len;
+  if (block < batch_size) {
+    if (tid < len) {
+      cache[tid] = xs[i];
+    } else {
+      cache[tid] = 0.0f;
+    }
+  }
+  __syncthreads();
+  if (block < batch_size) {
+    for (int s = 1; s < blockDim.x; s *= 2) {
+      if ((tid+1) % (2*s) == 0) {
+        cache[tid + 2*s-1] += cache[tid + s-1];
+      }
+      __syncthreads();
+    }
+    cache[blockDim.x-1] = 0.0f;
+    __syncthreads();
+    for (int s = blockDim.x / 2; s >= 1; s /= 2) {
+      if ((tid+1) % (2*s) == 0) {
+        float tmp = cache[tid + s-1];
+        cache[tid + s-1] = cache[tid + 2*s-1];
+        cache[tid + 2*s-1] += tmp;
+      }
+      __syncthreads();
+    }
+    if (tid < len) {
+      xs_prefix_sum[i] = cache[tid];
+    }
+  }
+}
+
+extern "C" void rembrandt_kernel_batch_blockscan_prefix_sum(
+    const float *xs,
+    int len,
+    int batch_size,
+    float *xs_prefix_sum,
+    cudaStream_t stream)
+{
+  // XXX: assert(len <= 1024);
+  // FIXME(20151022): could make more efficient use of blocks but w/e.
+  int n = batch_size * 1024;
+  batch_blockscan_prefix_sum_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(
+      xs, len, batch_size, xs_prefix_sum);
   CUDA_POST_KERNEL_CHECK;
 }
