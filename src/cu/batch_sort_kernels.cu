@@ -1,5 +1,6 @@
 #include "common.h"
 #include <cuda_runtime_api.h>
+#include <math_constants.h>
 #include <stdint.h>
 
 #define OFFSET_BANK(idx) ({ __typeof__ (idx) _idx = idx; ((_idx) + ((_idx) / 32)); })
@@ -17,12 +18,16 @@ __global__ void batch_blocksort_bitonic_argrevsort_kernel(
   __shared__ int32_t cache_idx[1024 + 32];
   int tid = threadIdx.x;
   int tid_offset = OFFSET_BANK(tid);
-  int block = blockIdx.x;
-  int i = tid + block * len;
-  if (tid < len && block < batch_size) {
+  int i = tid + blockIdx.x * len;
+  if (tid < len) {
     cache_val[tid_offset] = xs[i];
     cache_idx[tid_offset] = tid;
-    __syncthreads();
+  } else {
+    cache_val[tid_offset] = -CUDART_INF_F;
+    cache_idx[tid_offset] = -1;
+  }
+  __syncthreads();
+  if (tid < len) {
     for (int k = 2; k <= blockDim.x; k *= 2) {
       for (int j = k / 2; j >= 1; j /= 2) {
         int ixj = tid ^ j;
