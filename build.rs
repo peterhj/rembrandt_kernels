@@ -11,6 +11,7 @@ fn main() {
     .include("/usr/local/cuda/include")
     .file("src/cu/batch_map_kernels.cu")
     .file("src/cu/batch_reduce_kernels.cu")
+    .file("src/cu/batch_sort_kernels.cu")
     .file("src/cu/image_kernels.cu")
     .file("src/cu/map_kernels.cu")
     .file("src/cu/map_numerical_kernels.cu")

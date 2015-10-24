@@ -75,18 +75,18 @@ __global__ void batch_blockscan_prefix_sum_kernel(
   __syncthreads();
   if (block < batch_size) {
     for (int s = 1; s < blockDim.x; s *= 2) {
-      if ((tid+1) % (2*s) == 0) {
-        cache[OFFSET_BANK(tid + 2*s-1)] += cache[OFFSET_BANK(tid + s-1)];
+      if ((tid + 1) % (2*s) == 0) {
+        cache[OFFSET_BANK(tid)] += cache[OFFSET_BANK(tid - s)];
       }
       __syncthreads();
     }
     cache[OFFSET_BANK(blockDim.x-1)] = 0.0f;
     __syncthreads();
     for (int s = blockDim.x / 2; s >= 1; s /= 2) {
-      if ((tid+1) % (2*s) == 0) {
-        float tmp = cache[OFFSET_BANK(tid + s-1)];
-        cache[OFFSET_BANK(tid + s-1)] = cache[OFFSET_BANK(tid + 2*s-1)];
-        cache[OFFSET_BANK(tid + 2*s-1)] += tmp;
+      if ((tid + 1) % (2*s) == 0) {
+        float left_tmp = cache[OFFSET_BANK(tid - s)];
+        cache[OFFSET_BANK(tid - s)] = cache[OFFSET_BANK(tid)];
+        cache[OFFSET_BANK(tid)] += left_tmp;
       }
       __syncthreads();
     }

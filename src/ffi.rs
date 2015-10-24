@@ -21,7 +21,7 @@ extern "C" {
       stream: cudaStream_t,
   );
 
-  // Batch reduce kernels.
+  // Batch reduce and scan kernels.
   pub fn rembrandt_kernel_batch_blockreduce_argmax(
       xs: *const f32,
       len: c_int,
@@ -35,6 +35,16 @@ extern "C" {
       len: c_int,
       batch_size: c_int,
       xs_prefix_sum: *mut f32,
+      stream: cudaStream_t,
+  );
+
+  // Batch sort kernels.
+  pub fn rembrandt_kernel_batch_blocksort_bitonic_argrevsort(
+      xs: *const f32,
+      len: c_int,
+      batch_size: c_int,
+      xs_value_block: *mut f32,
+      xs_index_block: *mut i32,
       stream: cudaStream_t,
   );
 }
