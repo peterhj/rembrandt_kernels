@@ -29,6 +29,182 @@ extern "C" void rembrandt_kernel_batch_map_zero_mask_inplace(
   CUDA_POST_KERNEL_CHECK;
 }
 
+__global__ void batch_map_pos_mask_inplace(
+    float *z,
+    int n,
+    const float *pos_mask)
+{
+  int idx = threadIdx.x + blockIdx.x * blockDim.x;
+  if (idx < n) {
+    if (pos_mask[idx] > 0.0f) {
+      // Do nothing.
+    } else {
+      z[idx] = 0.0f;
+    }
+  }
+}
+
+extern "C" void rembrandt_kernel_batch_map_pos_mask_inplace(
+    float *z,
+    int num_channels,
+    int batch_size,
+    const float *pos_mask,
+    cudaStream_t stream)
+{
+  int n = num_channels * batch_size;
+  batch_map_pos_mask_inplace<<<(n+1024-1)/1024, 1024, 0, stream>>>(z, n, pos_mask);
+  CUDA_POST_KERNEL_CHECK;
+}
+
+/*__global__ void batch_map_sparsemask_inplace(
+    float *z,
+    int num_channels,
+    int batch_size,
+    int n,
+    const float *sparsemask)
+{
+  int idx = threadIdx.x + blockIdx.x * blockDim.x;
+}
+
+extern "C" void rembrandt_kernel_batch_map_sparsemask_inplace(
+    float *z,
+    int num_channels,
+    int batch_size,
+    const float *sparsemask,
+    cudaStream_t stream)
+{
+  int n = num_channels * batch_size;
+  batch_map_sparsemask_inplace<<<(n+1024-1)/1024, 1024, 0, stream>>>(z, num_channels, batch_size, n, sparsemask);
+}*/
+
+__global__ void map_rect_inplace_kernel(
+    float *z,
+    int n)
+{
+  int i = threadIdx.x + blockIdx.x * blockDim.x;
+  if (i < n) {
+    float z_i = z[i];
+    z[i] = fmaxf(0.0f, z_i);
+  }
+}
+
+extern "C" void rembrandt_kernel_batch_map_rect_inplace(
+    float *z,
+    int num_channels,
+    int batch_size,
+    cudaStream_t stream)
+{
+  int n = num_channels * batch_size;
+  map_rect_inplace_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(z, n);
+  CUDA_POST_KERNEL_CHECK;
+}
+
+__global__ void map_rect_backprop_inplace_kernel(
+    const float *out_act,
+    int n,
+    float *out_delta)
+{
+  int i = threadIdx.x + blockIdx.x * blockDim.x;
+  if (i < n) {
+    float z_i = out_act[i];
+    if (z_i > 0.0f) {
+      // Do nothing.
+    } else {
+      out_delta[i] = 0.0f;
+    }
+  }
+}
+
+extern "C" void rembrandt_kernel_batch_map_rect_backprop_inplace(
+    const float *out_act,
+    int num_channels,
+    int batch_size,
+    float *out_delta,
+    cudaStream_t stream)
+{
+  int n = num_channels * batch_size;
+  map_rect_backprop_inplace_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(
+        out_act, n, out_delta);
+  CUDA_POST_KERNEL_CHECK;
+}
+
+__global__ void map_bounded_rect_inplace_kernel(
+    float *z,
+    int n)
+{
+  int i = threadIdx.x + blockIdx.x * blockDim.x;
+  if (i < n) {
+    float z_i = z[i];
+    z[i] = fminf(1.0f, fmaxf(0.0f, z_i));
+  }
+}
+
+extern "C" void rembrandt_kernel_batch_map_bounded_rect_inplace(
+    float *z,
+    int num_channels,
+    int batch_size,
+    cudaStream_t stream)
+{
+  int n = num_channels * batch_size;
+  map_bounded_rect_inplace_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(z, n);
+  CUDA_POST_KERNEL_CHECK;
+}
+
+__global__ void map_bounded_rect_backprop_inplace_kernel(
+    const float *out_act,
+    int n,
+    float *out_delta)
+{
+  int i = threadIdx.x + blockIdx.x * blockDim.x;
+  if (i < n) {
+    float z_i = out_act[i];
+    if (z_i > 0.0f && z_i < 1.0f) {
+      // Do nothing.
+    } else {
+      out_delta[i] = 0.0f;
+    }
+  }
+}
+
+extern "C" void rembrandt_kernel_batch_map_bounded_rect_backprop_inplace(
+    const float *out_act,
+    int num_channels,
+    int batch_size,
+    float *out_delta,
+    cudaStream_t stream)
+{
+  int n = num_channels * batch_size;
+  map_bounded_rect_backprop_inplace_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(
+        out_act, n, out_delta);
+  CUDA_POST_KERNEL_CHECK;
+}
+
+__global__ void batch_map_boltzmann_q_transform(
+    const float *probs,
+    int n,
+    float inv_beta,
+    float *qvalues)
+{
+  int i = threadIdx.x + blockIdx.x * blockDim.x;
+  if (i < n) {
+    qvalues[i] = inv_beta * logf(probs[i]);
+  }
+}
+
+extern "C" void rembrandt_kernel_batch_map_boltzmann_q_transform(
+    const float *probs,
+    int num_channels,
+    int batch_size,
+    float beta,
+    float *qvalues,
+    cudaStream_t stream)
+{
+  int n = num_channels * batch_size;
+  float inv_beta = 1.0 / beta;
+  batch_map_boltzmann_q_transform<<<(n+1024-1)/1024, 1024, 0, stream>>>(probs, n, inv_beta, qvalues);
+  CUDA_POST_KERNEL_CHECK;
+}
+
 __global__ void batch_map_softmax_cross_entropy_loss_backprop_kernel(
     const float *z,
     int num_channels,
@@ -62,5 +238,68 @@ extern "C" void rembrandt_kernel_batch_map_softmax_cross_entropy_loss_backprop(
 {
   int n = num_channels * batch_size;
   batch_map_softmax_cross_entropy_loss_backprop_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(z, num_channels, batch_size, n, labels, delta, minibatch_size);
+  CUDA_POST_KERNEL_CHECK;
+}
+
+__global__ void batch_map_multi_bin_logistic_kernel(
+    const float *in_act,
+    int n,
+    float *out_act)
+{
+  int idx = threadIdx.x + blockIdx.x * blockDim.x;
+  if (idx < n) {
+    out_act[idx] = 1.0f / (1.0f + expf(-in_act[idx]));
+  }
+}
+
+extern "C" void rembrandt_kernel_batch_map_multi_bin_logistic(
+    const float *in_act,
+    int num_channels,
+    int batch_size,
+    float *out_act,
+    cudaStream_t stream)
+{
+  int n = num_channels * batch_size;
+  batch_map_multi_bin_logistic_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(in_act, n, out_act);
+  CUDA_POST_KERNEL_CHECK;
+}
+
+__global__ void batch_map_multi_bin_logistic_xent_loss_backprop_kernel(
+    const float *out_act,
+    int num_channels,
+    int batch_size,
+    const int32_t *cat_labels,
+    const int32_t *bin_labels,
+    float *in_delta,
+    float minibatch_size)
+{
+  int idx = threadIdx.x + blockIdx.x * blockDim.x;
+  int n = num_channels * batch_size;
+  int batch_idx = idx / num_channels;
+  int i = idx % num_channels;
+  if (idx < n) {
+    float y_i = out_act[idx];
+    float b_i = (float)(bin_labels[idx]);
+    if (i == cat_labels[batch_idx]) {
+      in_delta[idx] = (y_i - b_i) / minibatch_size;
+    } else {
+      in_delta[idx] = 0.0f;
+    }
+  }
+}
+
+extern "C" void rembrandt_kernel_batch_map_multi_bin_logistic_xent_loss_backprop(
+    const float *out_act,
+    int num_channels,
+    int batch_size,
+    const int32_t *cat_labels,
+    const int32_t *bin_labels,
+    float *in_delta,
+    float *maybe_loss,
+    float minibatch_size,
+    cudaStream_t stream)
+{
+  int n = num_channels * batch_size;
+  batch_map_multi_bin_logistic_xent_loss_backprop_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(out_act, num_channels, batch_size, cat_labels, bin_labels, in_delta, minibatch_size);
   CUDA_POST_KERNEL_CHECK;
 }
