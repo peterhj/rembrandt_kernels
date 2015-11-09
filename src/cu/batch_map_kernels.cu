@@ -179,7 +179,7 @@ extern "C" void rembrandt_kernel_batch_map_bounded_rect_backprop_inplace(
   CUDA_POST_KERNEL_CHECK;
 }
 
-__global__ void batch_map_boltzmann_q_transform(
+/*__global__ void batch_map_boltzmann_q_transform(
     const float *probs,
     int n,
     float inv_beta,
@@ -202,6 +202,36 @@ extern "C" void rembrandt_kernel_batch_map_boltzmann_q_transform(
   int n = num_channels * batch_size;
   float inv_beta = 1.0 / beta;
   batch_map_boltzmann_q_transform<<<(n+1024-1)/1024, 1024, 0, stream>>>(probs, n, inv_beta, qvalues);
+  CUDA_POST_KERNEL_CHECK;
+}*/
+
+__global__ void batch_map_softmax_cross_entropy_loss_kernel(
+    const float *probs,
+    int num_channels,
+    int batch_size,
+    const int32_t *labels,
+    float *loss_accum,
+    float minibatch_size)
+{
+  int batch_idx = threadIdx.x + blockIdx.x * blockDim.x;
+  if (batch_idx < batch_size) {
+    int j = labels[batch_idx];
+    int idx = j + batch_idx * num_channels;
+    loss_accum[batch_idx] -= logf(probs[idx]) / minibatch_size;
+  }
+}
+
+extern "C" void rembrandt_kernel_batch_map_softmax_cross_entropy_loss(
+    const float *probs,
+    int num_channels,
+    int batch_size,
+    const int32_t *labels,
+    float *loss_accum,
+    float minibatch_size,
+    cudaStream_t stream)
+{
+  batch_map_softmax_cross_entropy_loss_kernel<<<(batch_size+1024-1), 1024, 0, stream>>>(
+      probs, num_channels, batch_size, labels, loss_accum, minibatch_size);
   CUDA_POST_KERNEL_CHECK;
 }
 

@@ -70,12 +70,21 @@ extern "C" {
       out_delta: *mut f32,
       stream: cudaStream_t,
   );
-  pub fn rembrandt_kernel_batch_map_boltzmann_q_transform(
+  /*pub fn rembrandt_kernel_batch_map_boltzmann_q_transform(
       probs: *const f32,
       num_channels: c_int,
       batch_size: c_int,
       beta: f32,
       qvalues: *mut f32,
+      stream: cudaStream_t,
+  );*/
+  pub fn rembrandt_kernel_batch_map_softmax_cross_entropy_loss(
+      probs: *const f32,
+      num_channels: c_int,
+      batch_size: c_int,
+      labels: *const i32,
+      loss_accum: *mut f32,
+      minibatch_size: f32,
       stream: cudaStream_t,
   );
   pub fn rembrandt_kernel_batch_map_softmax_cross_entropy_loss_backprop(
