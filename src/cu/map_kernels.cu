@@ -1,5 +1,6 @@
 #include "common.h"
 #include <cuda_runtime_api.h>
+#include <stdint.h>
 
 __global__ void map_noop_kernel() {
   // Do nothing.
@@ -21,6 +22,50 @@ __global__ void map_zero_mask_kernel(
       xs[i] = 0.0;
     }
   }
+}
+
+__global__ void image_cast_byte_to_float_kernel(
+    const uint8_t *image_bytes,
+    int n,
+    float *image)
+{
+  int i = threadIdx.x + blockIdx.x * blockDim.x;
+  if (i < n) {
+    image[i] = (float)(image_bytes[i]);
+  }
+}
+
+extern "C" void rembrandt_kernel_map_cast_byte_to_float(
+    const uint8_t *image_bytes,
+    int n,
+    float *image,
+    cudaStream_t stream)
+{
+  image_cast_byte_to_float_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(
+      image_bytes, n, image);
+  CUDA_POST_KERNEL_CHECK;
+}
+
+__global__ void image_cast_byte_to_float_normalized_kernel(
+    const uint8_t *image_bytes,
+    int n,
+    float *image)
+{
+  int i = threadIdx.x + blockIdx.x * blockDim.x;
+  if (i < n) {
+    image[i] = (float)(image_bytes[i]) / 255.0f;
+  }
+}
+
+extern "C" void rembrandt_kernel_map_cast_byte_to_float_normalized(
+    const uint8_t *image_bytes,
+    int n,
+    float *image,
+    cudaStream_t stream)
+{
+  image_cast_byte_to_float_normalized_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(
+      image_bytes, n, image);
+  CUDA_POST_KERNEL_CHECK;
 }
 
 extern "C" void rembrandt_kernel_map_zero_mask(float *xs, int n, const float *zero_mask, cudaStream_t stream) {

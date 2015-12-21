@@ -3,6 +3,20 @@ use libc::{c_int};
 
 #[link(name = "rembrandt_kernels_cuda", kind = "static")]
 extern "C" {
+  // Map kernels.
+  pub fn rembrandt_kernel_map_cast_byte_to_float(
+      x: *const u8,
+      n: c_int,
+      y: *mut f32,
+      stream: cudaStream_t,
+  );
+  pub fn rembrandt_kernel_map_cast_byte_to_float_normalized(
+      x: *const u8,
+      n: c_int,
+      y: *mut f32,
+      stream: cudaStream_t,
+  );
+
   // Reduce kernels.
   pub fn rembrandt_kernel_reduce_count_nonzero(
       xs: *const f32,

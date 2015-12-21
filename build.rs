@@ -4,6 +4,10 @@ fn main() {
   gcc::Config::new()
     .compiler("/usr/local/cuda/bin/nvcc")
     .opt_level(3)
+    // FIXME(20151214): need to 
+    //.flag("--relocatable-device-code=true")
+    // FIXME(20151207): for working w/ K80.
+    //.flag("-arch=sm_37")
     .flag("-arch=sm_50")
     .flag("-Xcompiler")
     .flag("\'-fPIC\'")
@@ -17,6 +21,8 @@ fn main() {
     .file("src/cu/map_numerical_kernels.cu")
     .file("src/cu/reduce_kernels.cu")
     .compile("librembrandt_kernels_cuda.a");
+    //.nvcc_compile("librembrandt_kernels_cuda.a");
+  //println!("cargo:rustc-flags=-L /usr/local/cuda/lib64 -l static=cudadevrt");
 }
 
 /*use std::env;

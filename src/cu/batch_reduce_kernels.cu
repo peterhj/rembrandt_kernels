@@ -110,3 +110,41 @@ extern "C" void rembrandt_kernel_batch_blockscan_prefix_sum(
       xs, len, batch_size, xs_prefix_sum);
   CUDA_POST_KERNEL_CHECK;
 }
+
+__global__ void batch_blockreduce_build_bfilter_kernel(
+    const float *xs,
+    int n_leaf,
+    int n_round,
+    float *heap,
+    uint32_t *inner_mask,
+    uint32_t *leaf_mask)
+{
+  __shared__ float cache[1024 + 32];
+  __shared__ uint32_t cache_inner[1024 + 32];
+  __shared__ uint32_t cache_leaf[1024 + 32];
+  int tid = threadIdx.x;
+  int block = blockIdx.x;
+  int i = tid + block * n_leaf;
+
+  if (tid < n_leaf) {
+    cache[OFFSET_BANK(tid)] = xs[i];
+    cache_leaf[OFFSET_BANK(tid)] = 1;
+  } else if (tid < n_round) {
+    cache[OFFSET_BANK(tid)] = 0.0f;
+    cache_leaf[OFFSET_BANK(tid)] = 0;
+  }
+  __syncthreads();
+}
+
+extern "C" void rembrandt_kernel_batch_blockreduce_build_bfilter(
+    const float *xs,
+    int n_leaf,
+    int n_round,
+    float *heap,
+    uint32_t *inner_mask,
+    uint32_t *leaf_mask,
+    cudaStream_t stream)
+{
+  // XXX: assert(2 * n_round <= 1024);
+  // FIXME(20151022): could make more efficient use of blocks but w/e.
+}

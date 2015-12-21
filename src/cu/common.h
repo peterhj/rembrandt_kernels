@@ -2,11 +2,13 @@
 #define __REMBRANDT_KERNELS_CUDA_COMMON_H__
 
 #include <assert.h>
+#include <stdio.h>
 
 //#if defined(__cplusplus)
 //#endif
 
-#define CUDA_POST_KERNEL_CHECK assert((cudaPeekAtLastError()) == cudaSuccess)
+#define CUDA_POST_KERNEL_CHECK { cudaError_t code = cudaPeekAtLastError(); if (code != cudaSuccess) { fprintf(stderr, "FATAL: cuda error: %s\n", cudaGetErrorString(code)); fflush(NULL); assert(0); } }
+//#define CUDA_POST_KERNEL_CHECK assert((cudaPeekAtLastError()) == cudaSuccess)
 
 #define max(a, b) \
     ({ __typeof__ (a) _a = (a); \
