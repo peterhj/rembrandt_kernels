@@ -138,6 +138,14 @@ extern "C" {
       xs_idx: *mut i32,
       stream: cudaStream_t,
   );
+  pub fn rembrandt_kernel_batch_blockreduce_sum(
+      xs: *const f32,
+      len: c_int,
+      batch_size: c_int,
+      xs_sum: *mut f32,
+      alpha:  f32,
+      stream: cudaStream_t,
+  );
   pub fn rembrandt_kernel_batch_blockscan_prefix_sum(
       xs: *const f32,
       len: c_int,

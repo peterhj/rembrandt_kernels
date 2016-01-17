@@ -210,14 +210,14 @@ __global__ void batch_map_softmax_cross_entropy_loss_kernel(
     int num_channels,
     int batch_size,
     const int32_t *labels,
-    float *loss_accum,
+    float *loss1,
     float minibatch_size)
 {
   int batch_idx = threadIdx.x + blockIdx.x * blockDim.x;
   if (batch_idx < batch_size) {
     int j = labels[batch_idx];
     int idx = j + batch_idx * num_channels;
-    loss_accum[batch_idx] -= logf(probs[idx]) / minibatch_size;
+    loss1[batch_idx] = -logf(probs[idx]) / minibatch_size;
   }
 }
 
@@ -226,12 +226,12 @@ extern "C" void rembrandt_kernel_batch_map_softmax_cross_entropy_loss(
     int num_channels,
     int batch_size,
     const int32_t *labels,
-    float *loss_accum,
+    float *loss1,
     float minibatch_size,
     cudaStream_t stream)
 {
   batch_map_softmax_cross_entropy_loss_kernel<<<(batch_size+1024-1), 1024, 0, stream>>>(
-      probs, num_channels, batch_size, labels, loss_accum, minibatch_size);
+      probs, num_channels, batch_size, labels, loss1, minibatch_size);
   CUDA_POST_KERNEL_CHECK;
 }
 

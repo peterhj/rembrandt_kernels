@@ -52,6 +52,53 @@ extern "C" void rembrandt_kernel_batch_blockreduce_argmax(
   CUDA_POST_KERNEL_CHECK;
 }
 
+__global__ void batch_blockreduce_sum_kernel(
+    const float *xs,
+    int len,
+    int batch_size,
+    float *xs_sum,
+    float alpha)
+{
+  __shared__ float cache[1024 + 32];
+  int tid = threadIdx.x;
+  int block = blockIdx.x;
+  int i = tid + block * len;
+  if (tid < len && block < batch_size) {
+    cache[OFFSET_BANK(tid)] = xs[i];
+    __syncthreads();
+    for (int s = 1; s < blockDim.x; s *= 2) {
+      if (tid % (2*s) == 0 && (tid + s) < len) {
+        cache[OFFSET_BANK(tid)] += cache[OFFSET_BANK(tid + s)];
+      }
+      __syncthreads();
+    }
+    if (tid == 0) {
+      if (alpha != 0.0f) {
+        float xs_sum_0 = xs_sum[block];
+        xs_sum[block] = alpha * xs_sum_0 + cache[0];
+      } else {
+        xs_sum[block] = cache[0];
+      }
+    }
+  }
+}
+
+extern "C" void rembrandt_kernel_batch_blockreduce_sum(
+    const float *xs,
+    int len,
+    int batch_size,
+    float *xs_sum,
+    float alpha,
+    cudaStream_t stream)
+{
+  // XXX: assert(len <= 1024);
+  // FIXME(20151022): could make more efficient use of blocks but w/e.
+  int n = batch_size * 1024;
+  batch_blockreduce_sum_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(
+      xs, len, batch_size, xs_sum, alpha);
+  CUDA_POST_KERNEL_CHECK;
+}
+
 __global__ void batch_blockscan_prefix_sum_kernel(
     const float *xs,
     int len,
