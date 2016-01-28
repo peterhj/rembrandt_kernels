@@ -7,8 +7,8 @@ fn main() {
     // FIXME(20151214): need to 
     //.flag("--relocatable-device-code=true")
     // FIXME(20151207): for working w/ K80.
-    //.flag("-arch=sm_37")
-    .flag("-arch=sm_50")
+    .flag("-arch=sm_37")
+    //.flag("-arch=sm_50")
     .flag("-Xcompiler")
     .flag("\'-fPIC\'")
     .include("src/cu")
