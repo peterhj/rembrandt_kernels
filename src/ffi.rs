@@ -16,6 +16,12 @@ extern "C" {
       y: *mut f32,
       stream: cudaStream_t,
   );
+  pub fn rembrandt_kernel_map_multiply_float(
+      x: *const f32,
+      n: c_int,
+      y: *mut f32,
+      stream: cudaStream_t,
+  );
 
   // Reduce kernels.
   pub fn rembrandt_kernel_reduce_count_nonzero(
@@ -44,6 +50,13 @@ extern "C" {
   );
 
   // Batch map kernels.
+  pub fn rembrandt_kernel_batch_blockmap_normalize(
+      xs: *mut f32,
+      num_channels: c_int,
+      batch_size: c_int,
+      norm: *const f32,
+      stream: cudaStream_t,
+  );
   pub fn rembrandt_kernel_batch_map_zero_mask_inplace(
       z: *mut f32,
       num_channels: c_int,
@@ -126,6 +139,24 @@ extern "C" {
       in_delta: *mut f32,
       maybe_loss: *mut f32,
       minibatch_size: f32,
+      stream: cudaStream_t,
+  );
+  pub fn rembrandt_kernel_batch_map_softmax_kl_loss(
+      out_act:      *const f32,
+      num_channels: c_int,
+      batch_size:   c_int,
+      labels:       *const i32,
+      weights:      *const f32,
+      loss1:        *mut f32,
+      stream: cudaStream_t,
+  );
+  pub fn rembrandt_kernel_batch_map_softmax_kl_backward(
+      out_act:      *const f32,
+      num_channels: c_int,
+      batch_size:   c_int,
+      labels:       *const i32,
+      weights:      *const f32,
+      in_delta:     *mut f32,
       stream: cudaStream_t,
   );
 

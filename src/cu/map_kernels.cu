@@ -135,3 +135,27 @@ extern "C" void rembrandt_kernel_map_add_constant_float(
   map_add_constant_float_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(x, n, c);
   CUDA_POST_KERNEL_CHECK;
 }
+
+__global__ void map_multiply_float_kernel(
+    const float *x,
+    int n,
+    float *y)
+{
+  int i = threadIdx.x + blockIdx.x * blockDim.x;
+  if (i < n) {
+    float x_i = x[i];
+    float y_i = y[i];
+    y_i = x_i * y_i;
+    y[i] = y_i;
+  }
+}
+
+extern "C" void rembrandt_kernel_map_multiply_float(
+    const float *x,
+    int n,
+    float *y,
+    cudaStream_t stream)
+{
+  map_multiply_float_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(x, n, y);
+  CUDA_POST_KERNEL_CHECK;
+}

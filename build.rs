@@ -9,8 +9,9 @@ fn main() {
     // FIXME(20151207): for working w/ K80.
     .flag("-arch=sm_37")
     //.flag("-arch=sm_50")
-    .flag("-Xcompiler")
-    .flag("\'-fPIC\'")
+    /*.flag("-Xcompiler")
+    .flag("\'-fPIC\'")*/
+    .pic(true)
     .include("src/cu")
     .include("/usr/local/cuda/include")
     .file("src/cu/batch_map_kernels.cu")

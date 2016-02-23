@@ -8,11 +8,15 @@ build = "build.rs"
 name = "rembrandt_kernels"
 path = "src/lib.rs"
 
-[build-dependencies.gcc]
-path = "../gcc-rs"
+#[build-dependencies.gcc]
+#path = "../gcc-rs"
+
+[build-dependencies]
+gcc = "*"
 
 [dependencies]
 libc = "*"
+cuda = { path = "../libcuda" }
 
-[dependencies.cuda]
-path = "../libcuda"
+#[dependencies.cuda]
+#path = "../libcuda"
