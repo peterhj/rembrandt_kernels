@@ -97,6 +97,21 @@ extern "C" {
       out_delta: *mut f32,
       stream: cudaStream_t,
   );
+  pub fn rembrandt_kernel_batch_map_sigmoid_inplace_forward(
+      z: *mut f32,
+      num_channels: c_int,
+      batch_size: c_int,
+      beta: f32,
+      stream: cudaStream_t,
+  );
+  pub fn rembrandt_kernel_batch_map_sigmoid_inplace_backward(
+      out_act: *const f32,
+      num_channels: c_int,
+      batch_size: c_int,
+      out_delta: *mut f32,
+      beta: f32,
+      stream: cudaStream_t,
+  );
   /*pub fn rembrandt_kernel_batch_map_boltzmann_q_transform(
       probs: *const f32,
       num_channels: c_int,
@@ -152,6 +167,39 @@ extern "C" {
   );
   pub fn rembrandt_kernel_batch_map_softmax_kl_backward(
       out_act:      *const f32,
+      num_channels: c_int,
+      batch_size:   c_int,
+      labels:       *const i32,
+      weights:      *const f32,
+      in_delta:     *mut f32,
+      stream: cudaStream_t,
+  );
+  pub fn rembrandt_kernel_batch_map_logistic_forward(
+      in_values:    *const f32,
+      num_channels: c_int,
+      batch_size:   c_int,
+      out_values:   *mut f32,
+      stream: cudaStream_t,
+  );
+  pub fn rembrandt_kernel_batch_map_logistic_ind_backward(
+      out_values:   *const f32,
+      num_channels: c_int,
+      batch_size:   c_int,
+      labels:       *const i32,
+      weights:      *const f32,
+      in_delta:     *mut f32,
+      stream: cudaStream_t,
+  );
+  pub fn rembrandt_kernel_batch_map_antilogistic_forward(
+      in_values:    *const f32,
+      num_channels: c_int,
+      batch_size:   c_int,
+      logit_sums:   *const f32,
+      out_values:   *mut f32,
+      stream: cudaStream_t,
+  );
+  pub fn rembrandt_kernel_batch_map_antilogistic_kl_backward(
+      out_values:   *const f32,
       num_channels: c_int,
       batch_size:   c_int,
       labels:       *const i32,

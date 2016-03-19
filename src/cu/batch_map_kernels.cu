@@ -209,6 +209,58 @@ extern "C" void rembrandt_kernel_batch_map_bounded_rect_backprop_inplace(
   CUDA_POST_KERNEL_CHECK;
 }
 
+__global__ void map_sigmoid_inplace_forward_kernel(
+    float *y,
+    int n,
+    float beta)
+{
+  int i = threadIdx.x + blockIdx.x * blockDim.x;
+  if (i < n) {
+    float y_i = y[i];
+    y[i] = beta / (1.0f + expf(-y_i));
+  }
+}
+
+extern "C" void rembrandt_kernel_batch_map_sigmoid_inplace_forward(
+    float *z,
+    int num_channels,
+    int batch_size,
+    float beta,
+    cudaStream_t stream)
+{
+  int n = num_channels * batch_size;
+  map_sigmoid_inplace_forward_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(z, n, beta);
+  CUDA_POST_KERNEL_CHECK;
+}
+
+__global__ void map_sigmoid_inplace_backward_kernel(
+    const float *out_act,
+    int n,
+    float *out_delta,
+    float beta)
+{
+  int i = threadIdx.x + blockIdx.x * blockDim.x;
+  if (i < n) {
+    float y_i = out_act[i];
+    float delta_i = out_delta[i];
+    out_delta[i] = delta_i * y_i * (1.0f - y_i / beta);
+  }
+}
+
+extern "C" void rembrandt_kernel_batch_map_sigmoid_inplace_backward(
+    const float *out_act,
+    int num_channels,
+    int batch_size,
+    float *out_delta,
+    float beta,
+    cudaStream_t stream)
+{
+  int n = num_channels * batch_size;
+  map_sigmoid_inplace_backward_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(
+        out_act, n, out_delta, beta);
+  CUDA_POST_KERNEL_CHECK;
+}
+
 /*__global__ void batch_map_boltzmann_q_transform(
     const float *probs,
     int n,
@@ -473,6 +525,162 @@ extern "C" void rembrandt_kernel_batch_map_softmax_kl_backward(
   int n = num_channels * batch_size;
   batch_map_softmax_kl_backward<<<(n+1024-1)/1024, 1024, 0, stream>>>(
       out_act,
+      num_channels,
+      batch_size,
+      labels,
+      weights,
+      in_delta);
+}
+
+__global__ void batch_map_logistic_forward(
+    const float *in_values,
+    int num_channels,
+    int batch_size,
+    float *out_values)
+{
+  int idx = threadIdx.x + blockIdx.x * blockDim.x;
+  int n = num_channels * batch_size;
+  int batch_idx = idx / num_channels;
+  if (idx < n) {
+    float x_i = in_values[idx];
+    float y_i = 1.0f / (1.0f + expf(-x_i));
+    out_values[idx] = y_i;
+  }
+}
+
+extern "C" void rembrandt_kernel_batch_map_logistic_forward(
+    const float *in_values,
+    int num_channels,
+    int batch_size,
+    float *out_values,
+    cudaStream_t stream)
+{
+  int n = num_channels * batch_size;
+  batch_map_logistic_forward<<<(n+1024-1)/1024, 1024, 0, stream>>>(
+      in_values,
+      num_channels,
+      batch_size,
+      out_values);
+}
+
+__global__ void batch_map_logistic_ind_backward(
+    const float *out_values,
+    int num_channels,
+    int batch_size,
+    const int32_t *labels,
+    const float *weights,
+    float *in_delta)
+{
+  int idx = threadIdx.x + blockIdx.x * blockDim.x;
+  int n = num_channels * batch_size;
+  int batch_idx = idx / num_channels;
+  int j = idx % num_channels;
+  if (idx < n) {
+    int label = labels[batch_idx];
+    if (j == label) {
+      float w = weights[batch_idx];
+      float y_i = out_values[idx];
+      float delta_i = w * y_i * (1.0f - y_i);
+      in_delta[idx] = delta_i;
+    } else {
+      in_delta[idx] = 0.0f;
+    }
+  }
+}
+
+extern "C" void rembrandt_kernel_batch_map_logistic_ind_backward(
+    const float *out_values,
+    int num_channels,
+    int batch_size,
+    const int32_t *labels,
+    const float *weights,
+    float *in_delta,
+    cudaStream_t stream)
+{
+  int n = num_channels * batch_size;
+  batch_map_logistic_ind_backward<<<(n+1024-1)/1024, 1024, 0, stream>>>(
+      out_values,
+      num_channels,
+      batch_size,
+      labels,
+      weights,
+      in_delta);
+}
+
+__global__ void batch_map_antilogistic_forward(
+    const float *in_values,
+    int num_channels,
+    int batch_size,
+    const float *logit_sums,
+    float *out_values)
+{
+  int idx = threadIdx.x + blockIdx.x * blockDim.x;
+  int n = num_channels * batch_size;
+  int batch_idx = idx / num_channels;
+  //int j = idx % num_channels;
+  if (idx < n) {
+    float logit_sum = logit_sums[batch_idx];
+    float x_i = in_values[idx];
+    float y_i = 1.0f / (1.0f + expf(-2.0f * x_i + logit_sum));
+    out_values[idx] = y_i;
+  }
+}
+
+extern "C" void rembrandt_kernel_batch_map_antilogistic_forward(
+    const float *in_values,
+    int num_channels,
+    int batch_size,
+    const float *logit_sums,
+    float *out_values,
+    cudaStream_t stream)
+{
+  int n = num_channels * batch_size;
+  batch_map_antilogistic_forward<<<(n+1024-1)/1024, 1024, 0, stream>>>(
+      in_values,
+      num_channels,
+      batch_size,
+      logit_sums,
+      out_values);
+}
+
+__global__ void batch_map_antilogistic_kl_backward(
+    const float *out_values,
+    int num_channels,
+    int batch_size,
+    const int32_t *labels,
+    const float *weights,
+    float *in_delta)
+{
+  int idx = threadIdx.x + blockIdx.x * blockDim.x;
+  int n = num_channels * batch_size;
+  int batch_idx = idx / num_channels;
+  int j = idx % num_channels;
+  if (idx < n) {
+    int label = labels[batch_idx];
+    float direction = -1.0f;
+    if (j == label) {
+      direction = 1.0f;
+    }
+    float w = weights[batch_idx];
+    float y_i = out_values[idx];
+    float y_truth = out_values[label + batch_idx * num_channels];
+    float delta_i = -direction * w * y_i * (1.0f - y_i) / y_truth;
+    in_delta[idx] = delta_i;
+  }
+}
+
+extern "C" void rembrandt_kernel_batch_map_antilogistic_kl_backward(
+    const float *out_values,
+    int num_channels,
+    int batch_size,
+    const int32_t *labels,
+    const float *weights,
+    float *in_delta,
+    cudaStream_t stream)
+{
+  int n = num_channels * batch_size;
+  batch_map_antilogistic_kl_backward<<<(n+1024-1)/1024, 1024, 0, stream>>>(
+      out_values,
       num_channels,
       batch_size,
       labels,
