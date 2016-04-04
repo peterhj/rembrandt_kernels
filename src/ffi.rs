@@ -174,6 +174,15 @@ extern "C" {
       in_delta:     *mut f32,
       stream: cudaStream_t,
   );
+  pub fn rembrandt_kernel_batch_map_marginalized_softmax_ind_backward(
+      out_act:      *const f32,
+      num_channels: c_int,
+      batch_size:   c_int,
+      weights:      *const f32,
+      cat_weights:  *const f32,
+      in_delta:     *mut f32,
+      stream: cudaStream_t,
+  );
   pub fn rembrandt_kernel_batch_map_logistic_forward(
       in_values:    *const f32,
       num_channels: c_int,

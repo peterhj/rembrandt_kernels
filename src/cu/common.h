@@ -23,4 +23,6 @@
 #define CUDA_BLOCK_DIM_1D(n) (min((n+32-1)/32, 1024))
 #define CUDA_GRID_DIM_1D(n) ((n+1024-1)/1024)
 
+#define OFFSET_BANK(idx) ({ __typeof__ (idx) _idx = idx; ((_idx) + ((_idx) / 32)); })
+
 #endif

@@ -353,7 +353,7 @@ extern "C" void rembrandt_kernel_batch_map_softmax_cross_entropy_loss_backprop(
   CUDA_POST_KERNEL_CHECK;
 }
 
-__global__ void batch_map_softmax_kl_diverence_loss_backward_kernel(
+__global__ void batch_map_softmax_kl_divergence_loss_backward_kernel(
     const float *logits,
     int n,
     int num_channels,
@@ -375,7 +375,7 @@ __global__ void batch_map_softmax_kl_diverence_loss_backward_kernel(
   }
 }
 
-extern "C" void rembrandt_kernel_batch_map_softmax_kl_diverence_loss_backward(
+extern "C" void rembrandt_kernel_batch_map_softmax_kl_divergence_loss_backward(
     const float *logits,
     int num_channels,
     int batch_size,
@@ -385,7 +385,7 @@ extern "C" void rembrandt_kernel_batch_map_softmax_kl_diverence_loss_backward(
     cudaStream_t stream)
 {
   int n = num_channels * batch_size;
-  batch_map_softmax_kl_diverence_loss_backward_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(logits, n, num_channels, batch_size, labels, delta, scale);
+  batch_map_softmax_kl_divergence_loss_backward_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(logits, n, num_channels, batch_size, labels, delta, scale);
   CUDA_POST_KERNEL_CHECK;
 }
 
@@ -529,6 +529,58 @@ extern "C" void rembrandt_kernel_batch_map_softmax_kl_backward(
       batch_size,
       labels,
       weights,
+      in_delta);
+}
+
+__global__ void batch_map_marginalized_softmax_ind_backward(
+    const float *out_act,
+    int num_channels,
+    int batch_size,
+    const float *weights,
+    const float *cat_weights,
+    float *in_delta)
+{
+  __shared__ float z_cache[1024 + 32];
+  int idx = threadIdx.x + blockIdx.x * blockDim.x;
+  int n = num_channels * batch_size;
+  int batch_idx = idx / num_channels;
+  int j = idx % num_channels;
+  if (idx < n) {
+    float z_j = out_act[idx];
+    float w = weights[batch_idx];
+    z_cache[j] = z_j;
+    __syncthreads();
+    int batch_offset = batch_idx * num_channels;
+    float delta = 0.0f;
+    for (int k = 0; k < num_channels; k++) {
+      float cw_k = cat_weights[batch_offset + k];
+      float z_k = z_cache[k];
+      if (k == j) {
+        delta += cw_k * z_k * (1.0f - z_j);
+      } else {
+        delta += cw_k * z_k * (-z_j);
+      }
+    }
+    in_delta[idx] = w * delta;
+  }
+}
+
+extern "C" void rembrandt_kernel_batch_map_marginalized_softmax_ind_backward(
+    const float *out_act,
+    int num_channels,
+    int batch_size,
+    const float *weights,
+    const float *cat_weights,
+    float *in_delta,
+    cudaStream_t stream)
+{
+  int n = num_channels * batch_size;
+  batch_map_marginalized_softmax_ind_backward<<<(n+1024-1)/1024, 1024, 0, stream>>>(
+      out_act,
+      num_channels,
+      batch_size,
+      weights,
+      cat_weights,
       in_delta);
 }
 

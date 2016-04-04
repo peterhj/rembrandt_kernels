@@ -3,7 +3,7 @@
 #include <math_constants.h>
 #include <stdint.h>
 
-#define OFFSET_BANK(idx) ({ __typeof__ (idx) _idx = idx; ((_idx) + ((_idx) / 32)); })
+//#define OFFSET_BANK(idx) ({ __typeof__ (idx) _idx = idx; ((_idx) + ((_idx) / 32)); })
 
 __global__ void batch_blocksort_bitonic_argrevsort_kernel(
     const float *xs,
@@ -76,3 +76,76 @@ extern "C" void rembrandt_kernel_batch_blocksort_bitonic_argrevsort(
       xs, len, batch_size, xs_value_block, xs_index_block);
   CUDA_POST_KERNEL_CHECK;
 }
+
+__global__ void batch_blocksort_arg_rev_abs_bitonicsort_inplace_kernel(
+    float *xs_value,
+    int block_len,
+    int batch_size,
+    int32_t *xs_index)
+{
+  // XXX: See:
+  // <https://graphics.cg.uni-saarland.de/fileadmin/cguds/courses/ws1213/pp_cuda/slides/06_-_Sorting_in_Parallel.pdf>
+  __shared__ float cache_val[1024 + 32];
+  __shared__ int32_t cache_idx[1024 + 32];
+  int tid = threadIdx.x;
+  int tid_offset = OFFSET_BANK(tid);
+  int i = tid + blockIdx.x * block_len;
+  if (tid < block_len) {
+    cache_val[tid_offset] = fabs(xs_value[i]);
+    cache_idx[tid_offset] = tid;
+  } else {
+    cache_val[tid_offset] = -CUDART_INF_F;
+    cache_idx[tid_offset] = -1;
+  }
+  __syncthreads();
+  if (tid < block_len) {
+    for (int k = 2; k <= blockDim.x; k *= 2) {
+      for (int j = k / 2; j >= 1; j /= 2) {
+        int ixj = tid ^ j;
+        int ixj_offset = OFFSET_BANK(ixj);
+        if (ixj > tid) {
+          // XXX: Note that the comparisons are reversed (this is revsort).
+          if ((tid & k) == 0) {
+            if (cache_val[tid_offset] < cache_val[ixj_offset]) {
+              float tmp_val = cache_val[tid_offset];
+              int32_t tmp_idx = cache_idx[tid_offset];
+              cache_val[tid_offset] = cache_val[ixj_offset];
+              cache_idx[tid_offset] = cache_idx[ixj_offset];
+              cache_val[ixj_offset] = tmp_val;
+              cache_idx[ixj_offset] = tmp_idx;
+            }
+          } else {
+            if (cache_val[tid_offset] > cache_val[ixj_offset]) {
+              float tmp_val = cache_val[tid_offset];
+              int32_t tmp_idx = cache_idx[tid_offset];
+              cache_val[tid_offset] = cache_val[ixj_offset];
+              cache_idx[tid_offset] = cache_idx[ixj_offset];
+              cache_val[ixj_offset] = tmp_val;
+              cache_idx[ixj_offset] = tmp_idx;
+            }
+          }
+        }
+        __syncthreads();
+      }
+    }
+    xs_value[i] = cache_val[tid_offset];
+    xs_index[i] = cache_idx[tid_offset];
+  }
+}
+
+/*__global__ void arg_rev_abs_mergepath_inplace_kernel(
+    float *xs_value,
+    int xs_len,
+    int chunk_len,
+    float *xs_index)
+{
+}*/
+
+/*extern "C" void rembrandt_kernel_arg_rev_abs_mergesort_inplace(
+    float *xs_value,
+    int xs_len,
+    int chunk_len,
+    float *xs_index,
+    cudaStream_t)
+{
+}*/
