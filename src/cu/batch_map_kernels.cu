@@ -554,7 +554,7 @@ __global__ void batch_map_marginalized_softmax_ind_backward(
     float delta = 0.0f;
     for (int k = 0; k < num_channels; k++) {
       float cw_k = cat_weights[batch_offset + k];
-      float z_k = z_cache[k];
+      float z_k = z_cache[OFFSET_BANK(k)];
       if (k == j) {
         delta += cw_k * z_k * (1.0f - z_j);
       } else {
