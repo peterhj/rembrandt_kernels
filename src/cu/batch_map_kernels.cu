@@ -532,6 +532,49 @@ extern "C" void rembrandt_kernel_batch_map_softmax_kl_backward(
       in_delta);
 }
 
+__global__ void batch_map_softmax_ind_backward(
+    const float *out_act,
+    int num_channels,
+    int batch_size,
+    const int32_t *labels,
+    const float *weights,
+    float *in_delta)
+{
+  int idx = threadIdx.x + blockIdx.x * blockDim.x;
+  int n = num_channels * batch_size;
+  int batch_idx = idx / num_channels;
+  int j = idx % num_channels;
+  if (idx < n) {
+    int label = labels[batch_idx];
+    float z = out_act[idx];
+    float w = weights[batch_idx];
+    if (j == label) {
+      in_delta[idx] = w * z * (1.0f - z);
+    } else {
+      in_delta[idx] = w * z * (-z);
+    }
+  }
+}
+
+extern "C" void rembrandt_kernel_batch_map_softmax_ind_backward(
+    const float *out_act,
+    int num_channels,
+    int batch_size,
+    const int32_t *labels,
+    const float *weights,
+    float *in_delta,
+    cudaStream_t stream)
+{
+  int n = num_channels * batch_size;
+  batch_map_softmax_ind_backward<<<(n+1024-1)/1024, 1024, 0, stream>>>(
+      out_act,
+      num_channels,
+      batch_size,
+      labels,
+      weights,
+      in_delta);
+}
+
 __global__ void batch_map_marginalized_softmax_ind_backward(
     const float *out_act,
     int num_channels,
