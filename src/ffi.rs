@@ -226,6 +226,15 @@ extern "C" {
       stream: cudaStream_t,
   );
 
+  // Batch block map kernels.
+  pub fn rembrandt_kernel_batch_blockmap256_flip(
+      src:          *const f32,
+      num_channels: c_int,
+      batch_size:   c_int,
+      dst:          *mut f32,
+      stream:       cudaStream_t,
+  );
+
   // Batch reduce and scan kernels.
   pub fn rembrandt_kernel_batch_blockreduce_argmax(
       xs: *const f32,
