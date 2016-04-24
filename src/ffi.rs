@@ -50,6 +50,16 @@ extern "C" {
   );
 
   // Batch map kernels.
+  pub fn rembrandt_kernel_batch_map_preproc_pca3_noise(
+      src:          *const f32,
+      spatial_size: c_int,
+      batch_size:   c_int,
+      alphas:       *const f32,
+      evals:        *const f32,
+      evecs:        *const f32,
+      dst:          *mut f32,
+      stream:       cudaStream_t,
+  );
   pub fn rembrandt_kernel_batch_blockmap_normalize(
       xs: *mut f32,
       num_channels: c_int,
@@ -172,6 +182,16 @@ extern "C" {
       labels:       *const i32,
       weights:      *const f32,
       in_delta:     *mut f32,
+      stream: cudaStream_t,
+  );
+  pub fn rembrandt_kernel_batch_map_softmax_kl_loss1(
+      out_act:      *const f32,
+      num_channels: c_int,
+      batch_size:   c_int,
+      labels:       *const i32,
+      weights:      *const f32,
+      loss_factor:  f32,
+      loss1:        *mut f32,
       stream: cudaStream_t,
   );
   pub fn rembrandt_kernel_batch_map_softmax_ind_backward(

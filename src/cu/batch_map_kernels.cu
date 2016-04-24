@@ -2,6 +2,51 @@
 #include <cuda_runtime_api.h>
 #include <stdint.h>
 
+__global__ void batch_map_preproc_pca3_noise(
+    const float *src,
+    int spatial_size,
+    int batch_size,
+    const float *alphas,
+    const float *evals,
+    const float *evecs,
+    float *dst)
+{
+  int idx = threadIdx.x + blockIdx.x * blockDim.x;
+  int n = 3 * spatial_size * batch_size;
+  int batch_idx = idx / (3 * spatial_size);
+  //int j = (idx % (3 * spatial_size)) / 3;
+  int rgb = idx % 3;
+  if (idx < n) {
+    float x = src[idx];
+    float y = x +
+        alphas[3*batch_idx]   * evals[0] * evecs[rgb] +
+        alphas[3*batch_idx+1] * evals[1] * evecs[rgb+3] +
+        alphas[3*batch_idx+2] * evals[2] * evecs[rgb+6];
+    dst[idx] = y;
+  }
+}
+
+extern "C" void rembrandt_kernel_batch_map_preproc_pca3_noise(
+    const float *src,
+    int spatial_size,
+    int batch_size,
+    const float *alphas,
+    const float *evals,
+    const float *evecs,
+    float *dst,
+    cudaStream_t stream)
+{
+  int n = 3 * spatial_size * batch_size;
+  batch_map_preproc_pca3_noise<<<(n+1024-1)/1024, 1024, 0, stream>>>(
+      src,
+      spatial_size,
+      batch_size,
+      alphas,
+      evals,
+      evecs,
+      dst);
+}
+
 __global__ void batch_blockmap_normalize_kernel(
     float *xs,
     int len,
@@ -532,6 +577,47 @@ extern "C" void rembrandt_kernel_batch_map_softmax_kl_backward(
       in_delta);
 }
 
+__global__ void batch_map_softmax_kl_loss1(
+    const float *out_act,
+    int num_channels,
+    int batch_size,
+    const int32_t *labels,
+    const float *weights,
+    float loss_factor,
+    float *loss1)
+{
+  int batch_idx = threadIdx.x + blockIdx.x * blockDim.x;
+  if (batch_idx < batch_size) {
+    int j = labels[batch_idx];
+    int idx = j + batch_idx * num_channels;
+    float z = out_act[idx];
+    float w = weights[batch_idx];
+    float src_loss = loss1[batch_idx];
+    loss1[batch_idx] = -w * logf(z) + loss_factor * src_loss;
+  }
+}
+
+extern "C" void rembrandt_kernel_batch_map_softmax_kl_loss1(
+    const float *out_act,
+    int num_channels,
+    int batch_size,
+    const int32_t *labels,
+    const float *weights,
+    float loss_factor,
+    float *loss1,
+    cudaStream_t stream)
+{
+  int n = batch_size;
+  batch_map_softmax_kl_loss1<<<(n+1024-1)/1024, 1024, 0, stream>>>(
+      out_act,
+      num_channels,
+      batch_size,
+      labels,
+      weights,
+      loss_factor,
+      loss1);
+}
+
 __global__ void batch_map_softmax_ind_backward(
     const float *out_act,
     int num_channels,
@@ -635,7 +721,7 @@ __global__ void batch_map_logistic_forward(
 {
   int idx = threadIdx.x + blockIdx.x * blockDim.x;
   int n = num_channels * batch_size;
-  int batch_idx = idx / num_channels;
+  //int batch_idx = idx / num_channels;
   if (idx < n) {
     float x_i = in_values[idx];
     float y_i = 1.0f / (1.0f + expf(-x_i));
