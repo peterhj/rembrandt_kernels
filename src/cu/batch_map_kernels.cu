@@ -14,8 +14,8 @@ __global__ void batch_map_preproc_pca3_noise(
   int idx = threadIdx.x + blockIdx.x * blockDim.x;
   int n = 3 * spatial_size * batch_size;
   int batch_idx = idx / (3 * spatial_size);
-  //int j = (idx % (3 * spatial_size)) / 3;
-  int rgb = idx % 3;
+  int j = idx % (3 * spatial_size);
+  int rgb = j / spatial_size;
   if (idx < n) {
     float x = src[idx];
     float y = x +
