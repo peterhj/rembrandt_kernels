@@ -3,6 +3,18 @@ use libc::{c_int};
 
 #[link(name = "rembrandt_kernels_cuda", kind = "static")]
 extern "C" {
+  // Image kernels.
+  pub fn rembrandt_kernel_image3_bicubic_scale(
+      in_pixels:    *const f32,
+      in_width:     c_int,
+      in_height:    c_int,
+      channels:     c_int,
+      out_pixels:   *mut f32,
+      out_width:    c_int,
+      out_height:   c_int,
+      stream:       cudaStream_t,
+  );
+
   // Map kernels.
   pub fn rembrandt_kernel_map_cast_byte_to_float(
       x: *const u8,
