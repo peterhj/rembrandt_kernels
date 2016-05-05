@@ -14,6 +14,20 @@ extern "C" {
       out_height:   c_int,
       stream:       cudaStream_t,
   );
+  pub fn rembrandt_kernel_batch_image3_crop(
+      in_pixels:    *const f32,
+      in_stride:    c_int,
+      batch_size:   c_int,
+      in_widths:    *const c_int,
+      in_heights:   *const c_int,
+      channels:     c_int,
+      in_x_offsets: *const c_int,
+      in_y_offsets: *const c_int,
+      out_pixels:   *mut f32,
+      crop_width:   c_int,
+      crop_height:  c_int,
+      stream:       cudaStream_t,
+  );
 
   // Map kernels.
   pub fn rembrandt_kernel_map_cast_byte_to_float(

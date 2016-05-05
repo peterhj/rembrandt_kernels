@@ -87,15 +87,17 @@ __global__ void image3_bicubic_scale_kernel(
 {
   int idx = threadIdx.x + blockIdx.x * blockDim.x;
   int x = idx % out_width;
-  int y = idx / out_width;
+  int y = (idx / out_width) % out_height;
   int c = idx / (out_width * out_height);
 
-  float u = ((float)x) / ((float)out_width) * ((float)in_width);
-  float v = ((float)y) / ((float)out_height) * ((float)in_height);
+  if ((x < out_width) && (y < out_height) && (c < channels)) {
+    float u = ((float)x) / ((float)out_width) * ((float)in_width);
+    float v = ((float)y) / ((float)out_height) * ((float)in_height);
 
-  float interp_value = image3_bicubic_interpolate(in_pixels, in_width, in_height, u, v, c);
+    float interp_value = image3_bicubic_interpolate(in_pixels, in_width, in_height, u, v, c);
 
-  out_pixels[x + y * out_width + c * out_width * out_height] = interp_value;
+    out_pixels[x + y * out_width + c * out_width * out_height] = interp_value;
+  }
 }
 
 extern "C" void rembrandt_kernel_image3_bicubic_scale(
