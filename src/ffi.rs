@@ -34,6 +34,18 @@ extern "C" {
       out_height:   c_int,
       stream:       cudaStream_t,
   );
+  pub fn rembrandt_kernel_image3_crop(
+      in_pixels:    *const f32,
+      in_width:     c_int,
+      in_height:    c_int,
+      channels:     c_int,
+      x_offset:     c_int,
+      y_offset:     c_int,
+      out_pixels:   *mut f32,
+      crop_width:   c_int,
+      crop_height:  c_int,
+      stream:       cudaStream_t,
+  );
   pub fn rembrandt_kernel_batch_image3_crop(
       in_pixels:    *const f32,
       in_stride:    c_int,

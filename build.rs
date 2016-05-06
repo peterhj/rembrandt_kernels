@@ -20,6 +20,7 @@ fn main() {
     .file("src/cu/batch_sort_kernels.cu")
     .file("src/cu/image_kernels.cu")
     .file("src/cu/image3_kernels.cu")
+    .file("src/cu/batch_image_kernels.cu")
     .file("src/cu/map_kernels.cu")
     .file("src/cu/map_numerical_kernels.cu")
     .file("src/cu/reduce_kernels.cu")
