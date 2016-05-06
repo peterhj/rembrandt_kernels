@@ -14,7 +14,17 @@ extern "C" {
       out_height:   c_int,
       stream:       cudaStream_t,
   );
-  pub fn rembrandt_kernel_image3_bilinear_scale(
+  pub fn rembrandt_kernel_image3_catmullrom_scale(
+      in_pixels:    *const f32,
+      in_width:     c_int,
+      in_height:    c_int,
+      channels:     c_int,
+      out_pixels:   *mut f32,
+      out_width:    c_int,
+      out_height:   c_int,
+      stream:       cudaStream_t,
+  );
+  pub fn rembrandt_kernel_image3_2x2_bilinear_scale(
       in_pixels:    *const f32,
       in_width:     c_int,
       in_height:    c_int,
