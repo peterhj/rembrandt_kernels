@@ -16,7 +16,8 @@ gcc = "*"
 
 [dependencies]
 libc = "*"
-cuda = { path = "../libcuda" }
+#cuda = { path = "../libcuda" }
+cuda = { git = "https://github.com/peterhj/libcuda.git" }
 
 #[dependencies.cuda]
 #path = "../libcuda"
