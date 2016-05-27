@@ -3,6 +3,83 @@ use libc::{c_int};
 
 #[link(name = "rembrandt_kernels_cuda", kind = "static")]
 extern "C" {
+  pub fn rembrandt_kernel_div_map_inplace(
+      xs:       *mut f32,
+      n:        c_int,
+      ys:       *const f32,
+      stream:   cudaStream_t,
+  );
+  pub fn rembrandt_kernel_exp_map(
+      xs:       *const f32,
+      n:        c_int,
+      ys:       *mut f32,
+      stream:   cudaStream_t,
+  );
+  pub fn rembrandt_kernel_scalar_sub_map_batch_inplace(
+      xs:           *mut f32,
+      frame_len:    c_int,
+      batch_size:   c_int,
+      scalars:      *const f32,
+      stream:       cudaStream_t,
+  );
+  pub fn rembrandt_kernel_scalar_div_map_batch(
+      xs:           *const f32,
+      frame_len:    c_int,
+      batch_size:   c_int,
+      scalars:      *const f32,
+      ys:           *mut f32,
+      stream:       cudaStream_t,
+  );
+
+  pub fn rembrandt_kernel_inner_prod_blockreduce_batch(
+      xs:           *const f32,
+      frame_len:    c_int,
+      batch_size:   c_int,
+      ws:           *const f32,
+      alpha:        f32,
+      sum:          *mut f32,
+      stream:       cudaStream_t,
+  );
+
+  pub fn rembrandt_kernel_softmax_kl_loss_fwd_batch(
+      out_act:      *const f32,
+      frame_len:    c_int,
+      batch_size:   c_int,
+      label_cats:   *const i32,
+      weights:      *const f32,
+      targets:      *const f32,
+      out_loss:     *mut f32,
+      stream:       cudaStream_t,
+  );
+  pub fn rembrandt_kernel_softmax_kl_loss_bwd_batch(
+      out_act:      *const f32,
+      frame_len:    c_int,
+      batch_size:   c_int,
+      label_cats:   *const i32,
+      weights:      *const f32,
+      targets:      *const f32,
+      in_delta:     *mut f32,
+      stream:       cudaStream_t,
+  );
+  pub fn rembrandt_kernel_softmax_r_fwd_batch(
+      out_act:      *const f32,
+      frame_len:    c_int,
+      batch_size:   c_int,
+      in_r_act:     *const f32,
+      mix_in_r_act: *const f32,
+      out_r_act:    *mut f32,
+      stream:       cudaStream_t,
+  );
+  pub fn rembrandt_kernel_softmax_kl_loss_r_fwd_batch(
+      out_act:      *const f32,
+      frame_len:    c_int,
+      batch_size:   c_int,
+      out_r_act:    *const f32,
+      label_cats:   *const i32,
+      out_r_loss:   *mut f32,
+      stream:       cudaStream_t,
+  );
+
   // Image kernels.
   pub fn rembrandt_kernel_image3_bicubic_scale(
       in_pixels:    *const f32,

@@ -6,13 +6,15 @@ __global__ void softmax_kl_loss_fwd_batch_kernel(
     int frame_len,
     int batch_size,
     const int32_t *label_cats,
+    const float *weights,
+    const float *targets,
     float *out_loss)
 {
   int batch_idx = threadIdx.x + blockIdx.x * blockDim.x;
   if (batch_idx < batch_size) {
     int cat_i = label_cats[batch_idx];
     int idx = cat_i + batch_idx * frame_len;
-    float x = -logf(out_act[idx]);
+    float x = -logf(out_act[idx]) * weights[cat_i] * targets[cat_i];
     out_loss[batch_idx] = x;
   }
 }
@@ -22,6 +24,8 @@ extern "C" void rembrandt_kernel_softmax_kl_loss_fwd_batch(
     int frame_len,
     int batch_size,
     const int32_t *label_cats,
+    const float *weights,
+    const float *targets,
     float *out_loss,
     cudaStream_t stream)
 {
@@ -29,6 +33,8 @@ extern "C" void rembrandt_kernel_softmax_kl_loss_fwd_batch(
   softmax_kl_loss_fwd_batch_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(
       out_act, frame_len, batch_size,
       label_cats,
+      weights,
+      targets,
       out_loss);
 }
 
@@ -37,6 +43,8 @@ __global__ void softmax_kl_loss_bwd_batch_kernel(
     int frame_len,
     int batch_size,
     const int32_t *label_cats,
+    const float *weights,
+    const float *targets,
     float *in_delta)
 {
   int idx = threadIdx.x + blockIdx.x * blockDim.x;
@@ -48,6 +56,7 @@ __global__ void softmax_kl_loss_bwd_batch_kernel(
     if (i == cat_i) {
       dx -= 1.0f;
     }
+    dx *= weights[cat_i] * targets[cat_i];
     in_delta[idx] = dx;
   }
 }
@@ -57,6 +66,8 @@ extern "C" void rembrandt_kernel_softmax_kl_loss_bwd_batch(
     int frame_len,
     int batch_size,
     const int32_t *label_cats,
+    const float *weights,
+    const float *targets,
     float *in_delta,
     cudaStream_t stream)
 {
@@ -64,6 +75,8 @@ extern "C" void rembrandt_kernel_softmax_kl_loss_bwd_batch(
   softmax_kl_loss_bwd_batch_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(
       out_act, frame_len, batch_size,
       label_cats,
+      weights,
+      targets,
       in_delta);
 }
 
@@ -112,7 +125,7 @@ __global__ void softmax_kl_loss_r_fwd_batch_kernel(
 {
   int batch_idx = threadIdx.x + blockIdx.x * blockDim.x;
   if (batch_idx < batch_size) {
-    int cat_i = label_cats[idx];
+    int cat_i = label_cats[batch_idx];
     int idx = cat_i + batch_idx * frame_len;
     float x = -out_r_act[idx] / out_act[idx];
     out_r_loss[batch_idx] = x;

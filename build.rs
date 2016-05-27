@@ -24,6 +24,9 @@ fn main() {
     .file("src/cu/map_kernels.cu")
     .file("src/cu/map_numerical_kernels.cu")
     .file("src/cu/reduce_kernels.cu")
+    .file("src/cu/map_kernels_new.cu")
+    .file("src/cu/reduce_kernels_new.cu")
+    .file("src/cu/softmax_kernels.cu")
     .compile("librembrandt_kernels_cuda.a");
     //.nvcc_compile("librembrandt_kernels_cuda.a");
   //println!("cargo:rustc-flags=-L /usr/local/cuda/lib64 -l static=cudadevrt");
