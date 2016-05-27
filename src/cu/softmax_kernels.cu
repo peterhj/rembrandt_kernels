@@ -14,7 +14,7 @@ __global__ void softmax_kl_loss_fwd_batch_kernel(
   if (batch_idx < batch_size) {
     int cat_i = label_cats[batch_idx];
     int idx = cat_i + batch_idx * frame_len;
-    float x = -logf(out_act[idx]) * weights[cat_i] * targets[cat_i];
+    float x = -logf(out_act[idx]) * weights[batch_idx] * targets[batch_idx];
     out_loss[batch_idx] = x;
   }
 }
@@ -56,7 +56,7 @@ __global__ void softmax_kl_loss_bwd_batch_kernel(
     if (i == cat_i) {
       dx -= 1.0f;
     }
-    dx *= weights[cat_i] * targets[cat_i];
+    dx *= weights[batch_idx] * targets[batch_idx];
     in_delta[idx] = dx;
   }
 }
