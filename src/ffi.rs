@@ -76,6 +76,7 @@ extern "C" {
       batch_size:   c_int,
       out_r_act:    *const f32,
       label_cats:   *const i32,
+      r_weights:    *const f32,
       out_r_loss:   *mut f32,
       stream:       cudaStream_t,
   );
