@@ -39,7 +39,24 @@ extern "C" {
       mean:         *mut f32,
       stream:       cudaStream_t,
   );
+  pub fn rembrandt_kernel_estimate_conv_mean_fast_batch(
+      src:          *const f32,
+      spatial_dim:  c_int,
+      num_channels: c_int,
+      batch_size:   c_int,
+      mean:         *mut f32,
+      stream:       cudaStream_t,
+  );
   pub fn rembrandt_kernel_estimate_conv_var_batch(
+      src:          *const f32,
+      spatial_dim:  c_int,
+      num_channels: c_int,
+      batch_size:   c_int,
+      mean:         *const f32,
+      var:          *mut f32,
+      stream:       cudaStream_t,
+  );
+  pub fn rembrandt_kernel_estimate_conv_var_fast_batch(
       src:          *const f32,
       spatial_dim:  c_int,
       num_channels: c_int,

@@ -9,10 +9,13 @@ __global__ void estimate_conv_mean_batch_kernel(
     float *mean)
 {
   int idx = threadIdx.x + blockIdx.x * blockDim.x;
+  /*int u = idx % spatial_dim;
+  int c = (idx / spatial_dim) % channels;*/
   int c = idx % channels;
   int u = (idx / channels) % spatial_dim;
   int batch_idx = idx / (channels * spatial_dim);
   if (c < channels && u < spatial_dim && batch_idx < batch_size) {
+    //float dy = src[idx];
     int i = u + c * spatial_dim + batch_idx * spatial_dim * channels;
     float dy = src[i];
     atomicAdd(&mean[c], dy);
@@ -29,6 +32,43 @@ extern "C" void rembrandt_kernel_estimate_conv_mean_batch(
 {
   int n = spatial_dim * channels * batch_size;
   estimate_conv_mean_batch_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(
+      src, spatial_dim, channels, batch_size, mean);
+}
+
+__global__ void estimate_conv_mean_fast_batch_kernel(
+    const float *src,
+    int spatial_dim,
+    int channels,
+    int batch_size,
+    float *mean)
+{
+  int idx = threadIdx.x + blockIdx.x * blockDim.x;
+  int unroll_spatial_dim = (spatial_dim+32-1)/32;
+  int c = idx % channels;
+  int u0 = ((idx / channels) % unroll_spatial_dim) * 32;
+  int batch_idx = idx / (channels * unroll_spatial_dim);
+  if (c < channels && u0 < spatial_dim && batch_idx < batch_size) {
+    float dy = 0.0f;
+    int i0 = c * spatial_dim + batch_idx * spatial_dim * channels;
+    int u_limit = min(u0+32, spatial_dim);
+    for (int u = u0; u < u_limit; u++) {
+      int i = i0 + u;
+      dy += src[i];
+    }
+    atomicAdd(&mean[c], dy);
+  }
+}
+
+extern "C" void rembrandt_kernel_estimate_conv_mean_fast_batch(
+    const float *src,
+    int spatial_dim,
+    int channels,
+    int batch_size,
+    float *mean,
+    cudaStream_t stream)
+{
+  int n = ((spatial_dim+32-1)/32) * channels * batch_size;
+  estimate_conv_mean_fast_batch_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(
       src, spatial_dim, channels, batch_size, mean);
 }
 
@@ -69,12 +109,15 @@ __global__ void estimate_conv_var_batch_kernel(
     float *var)
 {
   int idx = threadIdx.x + blockIdx.x * blockDim.x;
+  /*int u = idx % spatial_dim;
+  int c = (idx / spatial_dim) % channels;*/
   int c = idx % channels;
   int u = (idx / channels) % spatial_dim;
   int batch_idx = idx / (channels * spatial_dim);
   if (c < channels && u < spatial_dim && batch_idx < batch_size) {
     int i = u + c * spatial_dim + batch_idx * spatial_dim * channels;
-    float mean_c = mean[c];
+    float mean_c = mean[c] / ((float)(batch_size));
+    //float delta = src[idx] - mean_c;
     float delta = src[i] - mean_c;
     float dy = delta * delta;
     atomicAdd(&var[c], dy);
@@ -92,6 +135,47 @@ extern "C" void rembrandt_kernel_estimate_conv_var_batch(
 {
   int n = spatial_dim * channels * batch_size;
   estimate_conv_var_batch_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(
+      src, spatial_dim, channels, batch_size, mean, var);
+}
+
+__global__ void estimate_conv_var_fast_batch_kernel(
+    const float *src,
+    int spatial_dim,
+    int channels,
+    int batch_size,
+    const float *mean,
+    float *var)
+{
+  int idx = threadIdx.x + blockIdx.x * blockDim.x;
+  int unroll_spatial_dim = (spatial_dim+32-1)/32;
+  int c = idx % channels;
+  int u0 = ((idx / channels) % unroll_spatial_dim) * 32;
+  int batch_idx = idx / (channels * unroll_spatial_dim);
+  if (c < channels && u0 < spatial_dim && batch_idx < batch_size) {
+    float mean_c = mean[c] / ((float)(batch_size));
+    float dy = 0.0f;
+    int i0 = c * spatial_dim + batch_idx * spatial_dim * channels;
+    int u_limit = min(u0+32, spatial_dim);
+    for (int u = u0; u < u_limit; u++) {
+      int i = i0 + u;
+      float delta = src[i] - mean_c;
+      dy += delta * delta;
+    }
+    atomicAdd(&var[c], dy);
+  }
+}
+
+extern "C" void rembrandt_kernel_estimate_conv_var_fast_batch(
+    const float *src,
+    int spatial_dim,
+    int channels,
+    int batch_size,
+    const float *mean,
+    float *var,
+    cudaStream_t stream)
+{
+  int n = ((spatial_dim+32-1)/32) * channels * batch_size;
+  estimate_conv_var_fast_batch_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(
       src, spatial_dim, channels, batch_size, mean, var);
 }
 
