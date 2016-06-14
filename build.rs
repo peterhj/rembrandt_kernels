@@ -26,6 +26,7 @@ fn main() {
     .file("src/cu/reduce_kernels.cu")
     .file("src/cu/map_kernels_new.cu")
     .file("src/cu/reduce_kernels_new.cu")
+    .file("src/cu/bnorm_kernels.cu")
     .file("src/cu/estimate_kernels.cu")
     .file("src/cu/softmax_kernels.cu")
     .compile("librembrandt_kernels_cuda.a");
