@@ -31,6 +31,41 @@ extern "C" {
       stream:       cudaStream_t,
   );
 
+  pub fn rembrandt_kernel_estimate_conv_mean_batch(
+      src:          *const f32,
+      spatial_dim:  c_int,
+      num_channels: c_int,
+      batch_size:   c_int,
+      mean:         *mut f32,
+      stream:       cudaStream_t,
+  );
+  pub fn rembrandt_kernel_estimate_conv_var_batch(
+      src:          *const f32,
+      spatial_dim:  c_int,
+      num_channels: c_int,
+      batch_size:   c_int,
+      mean:         *const f32,
+      var:          *mut f32,
+      stream:       cudaStream_t,
+  );
+  pub fn rembrandt_kernel_estimate_online_var(
+      mean_batch:   *const f32,
+      len:          c_int,
+      var_batch:    *const f32,
+      mean_acc:     *const f32,
+      batch_size:   c_int,
+      acc_size:     c_int,
+      var_acc:      *mut f32,
+      stream:       cudaStream_t,
+  );
+  pub fn rembrandt_kernel_estimate_invstd(
+      var:          *const f32,
+      len:          c_int,
+      epsilon:      f32,
+      istd:         *mut f32,
+      stream:       cudaStream_t,
+  );
+
   pub fn rembrandt_kernel_inner_prod_blockreduce_batch(
       xs:           *const f32,
       frame_len:    c_int,
