@@ -1,3 +1,4 @@
+#include "common.h"
 #include <cuda_runtime_api.h>
 #include <stdint.h>
 
@@ -20,19 +21,6 @@ __global__ void estimate_conv_mean_batch_kernel(
     float dy = src[i];
     atomicAdd(&mean[c], dy);
   }
-}
-
-extern "C" void rembrandt_kernel_estimate_conv_mean_batch(
-    const float *src,
-    int spatial_dim,
-    int channels,
-    int batch_size,
-    float *mean,
-    cudaStream_t stream)
-{
-  int n = spatial_dim * channels * batch_size;
-  estimate_conv_mean_batch_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(
-      src, spatial_dim, channels, batch_size, mean);
 }
 
 __global__ void estimate_conv_mean_fast_batch_kernel(
@@ -59,7 +47,59 @@ __global__ void estimate_conv_mean_fast_batch_kernel(
   }
 }
 
-extern "C" void rembrandt_kernel_estimate_conv_mean_fast_batch(
+__global__ void estimate_conv_mean_fast2_batch_kernel(
+    const float *src,
+    int spatial_dim,
+    int num_channels,
+    int batch_size,
+    float *mean)
+{
+  __shared__ float mean_cache[1024+32];
+  int idx = threadIdx.x + blockIdx.x * blockDim.x;
+  int bank_idx = OFFSET_BANK(threadIdx.x);
+  int block_spatial_dim = (spatial_dim+16*32-1)/(16*32);
+  int warp_idx = idx % 32;
+  int c = (idx / 32) % num_channels;
+  int u0 = warp_idx + ((idx / (32 * num_channels)) % block_spatial_dim) * (16*32);
+  int batch_idx = idx / (32 * num_channels * block_spatial_dim);
+  if (c < num_channels && u0 < spatial_dim && batch_idx < batch_size) {
+    float y = 0.0f;
+    int i0 = c * spatial_dim + batch_idx * spatial_dim * num_channels;
+    int u_limit = min(spatial_dim, u0 + 16*32);
+    for (int u = u0; u < u_limit; u += 32) {
+      int i = i0 + u;
+      y += src[i];
+    }
+    mean_cache[bank_idx] = y;
+  } else {
+    mean_cache[bank_idx] = 0.0f;
+  }
+  __syncthreads();
+  if (c < num_channels && batch_idx < batch_size) {
+    if (bank_idx % 2 == 0) {
+      mean_cache[bank_idx] += mean_cache[bank_idx+1];
+    }
+    __syncthreads();
+    if (bank_idx % 4 == 0) {
+      mean_cache[bank_idx] += mean_cache[bank_idx+2];
+    }
+    __syncthreads();
+    if (bank_idx % 8 == 0) {
+      mean_cache[bank_idx] += mean_cache[bank_idx+4];
+    }
+    __syncthreads();
+    if (bank_idx % 16 == 0) {
+      mean_cache[bank_idx] += mean_cache[bank_idx+8];
+    }
+    __syncthreads();
+    if (bank_idx % 32 == 0 && u0 < spatial_dim) {
+      float y = (mean_cache[bank_idx] + mean_cache[bank_idx+16]) / ((float)(spatial_dim) * (float)(batch_size));
+      atomicAdd(&mean[c], y);
+    }
+  }
+}
+
+extern "C" void rembrandt_kernel_estimate_conv_mean_batch(
     const float *src,
     int spatial_dim,
     int channels,
@@ -67,9 +107,24 @@ extern "C" void rembrandt_kernel_estimate_conv_mean_fast_batch(
     float *mean,
     cudaStream_t stream)
 {
-  int n = ((spatial_dim+32-1)/32) * channels * batch_size;
-  estimate_conv_mean_fast_batch_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(
+  int n = spatial_dim * channels * batch_size;
+  estimate_conv_mean_batch_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(
       src, spatial_dim, channels, batch_size, mean);
+}
+
+extern "C" void rembrandt_kernel_estimate_conv_mean_fast_batch(
+    const float *src,
+    int spatial_dim,
+    int num_channels,
+    int batch_size,
+    float *mean,
+    cudaStream_t stream)
+{
+  //int n = ((spatial_dim+32-1)/32) * channels * batch_size;
+  int block_spatial_dim = (spatial_dim+16*32-1)/(16*32);
+  int n = 32 * num_channels * block_spatial_dim * batch_size;
+  estimate_conv_mean_fast2_batch_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(
+      src, spatial_dim, num_channels, batch_size, mean);
 }
 
 /*__global__ void estimate_online_mean_kernel(
@@ -124,20 +179,6 @@ __global__ void estimate_conv_var_batch_kernel(
   }
 }
 
-extern "C" void rembrandt_kernel_estimate_conv_var_batch(
-    const float *src,
-    int spatial_dim,
-    int channels,
-    int batch_size,
-    const float *mean,
-    float *var,
-    cudaStream_t stream)
-{
-  int n = spatial_dim * channels * batch_size;
-  estimate_conv_var_batch_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(
-      src, spatial_dim, channels, batch_size, mean, var);
-}
-
 __global__ void estimate_conv_var_fast_batch_kernel(
     const float *src,
     int spatial_dim,
@@ -165,7 +206,62 @@ __global__ void estimate_conv_var_fast_batch_kernel(
   }
 }
 
-extern "C" void rembrandt_kernel_estimate_conv_var_fast_batch(
+__global__ void estimate_conv_var_fast2_batch_kernel(
+    const float *src,
+    int spatial_dim,
+    int num_channels,
+    int batch_size,
+    const float *mean,
+    float *var)
+{
+  __shared__ float var_cache[1024+32];
+  int idx = threadIdx.x + blockIdx.x * blockDim.x;
+  int bank_idx = OFFSET_BANK(threadIdx.x);
+  int block_spatial_dim = (spatial_dim+16*32-1)/(16*32);
+  int warp_idx = idx % 32;
+  int c = (idx / 32) % num_channels;
+  int u0 = warp_idx + ((idx / (32 * num_channels)) % block_spatial_dim) * (16*32);
+  int batch_idx = idx / (32 * num_channels * block_spatial_dim);
+  if (c < num_channels && u0 < spatial_dim && batch_idx < batch_size) {
+    float mean_c = mean[c] / ((float)(batch_size));
+    float y = 0.0f;
+    int i0 = c * spatial_dim + batch_idx * spatial_dim * num_channels;
+    int u_limit = min(spatial_dim, u0 + 16*32);
+    for (int u = u0; u < u_limit; u += 32) {
+      int i = i0 + u;
+      float delta = src[i] - mean_c;
+      y += delta * delta;
+    }
+    var_cache[bank_idx] = y;
+  } else {
+    var_cache[bank_idx] = 0.0f;
+  }
+  __syncthreads();
+  if (c < num_channels && batch_idx < batch_size) {
+    if (bank_idx % 2 == 0) {
+      var_cache[bank_idx] += var_cache[bank_idx+1];
+    }
+    __syncthreads();
+    if (bank_idx % 4 == 0) {
+      var_cache[bank_idx] += var_cache[bank_idx+2];
+    }
+    __syncthreads();
+    if (bank_idx % 8 == 0) {
+      var_cache[bank_idx] += var_cache[bank_idx+4];
+    }
+    __syncthreads();
+    if (bank_idx % 16 == 0) {
+      var_cache[bank_idx] += var_cache[bank_idx+8];
+    }
+    __syncthreads();
+    if (bank_idx % 32 == 0 && u0 < spatial_dim) {
+      float y = (var_cache[bank_idx] + var_cache[bank_idx+16]) / ((float)(spatial_dim-1) * (float)(batch_size-1));
+      atomicAdd(&var[c], y);
+    }
+  }
+}
+
+extern "C" void rembrandt_kernel_estimate_conv_var_batch(
     const float *src,
     int spatial_dim,
     int channels,
@@ -174,14 +270,30 @@ extern "C" void rembrandt_kernel_estimate_conv_var_fast_batch(
     float *var,
     cudaStream_t stream)
 {
-  int n = ((spatial_dim+32-1)/32) * channels * batch_size;
-  estimate_conv_var_fast_batch_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(
+  int n = spatial_dim * channels * batch_size;
+  estimate_conv_var_batch_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(
       src, spatial_dim, channels, batch_size, mean, var);
+}
+
+extern "C" void rembrandt_kernel_estimate_conv_var_fast_batch(
+    const float *src,
+    int spatial_dim,
+    int num_channels,
+    int batch_size,
+    const float *mean,
+    float *var,
+    cudaStream_t stream)
+{
+  //int n = ((spatial_dim+32-1)/32) * channels * batch_size;
+  int block_spatial_dim = (spatial_dim+16*32-1)/(16*32);
+  int n = 32 * num_channels * block_spatial_dim * batch_size;
+  estimate_conv_var_fast2_batch_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(
+      src, spatial_dim, num_channels, batch_size, mean, var);
 }
 
 __global__ void estimate_online_var_kernel(
     const float *mean_batch,
-    int len,
+    int dim,
     const float *var_batch,
     const float *mean_acc,
     int batch_size,
@@ -189,7 +301,7 @@ __global__ void estimate_online_var_kernel(
     float *var_acc)
 {
   int idx = threadIdx.x + blockIdx.x * blockDim.x;
-  if (idx < len) {
+  if (idx < dim) {
     float var_a = var_acc[idx];
     float var_b = var_batch[idx];
     float delta = mean_batch[idx] / ((float)(batch_size)) - mean_acc[idx] / ((float)(acc_size));
@@ -200,7 +312,7 @@ __global__ void estimate_online_var_kernel(
 
 extern "C" void rembrandt_kernel_estimate_online_var(
     const float *mean_batch,
-    int len,
+    int dim,
     const float *var_batch,
     const float *mean_acc,
     int batch_size,
@@ -208,30 +320,30 @@ extern "C" void rembrandt_kernel_estimate_online_var(
     float *var_acc,
     cudaStream_t stream)
 {
-  estimate_online_var_kernel<<<(len+1024-1)/1024, 1024, 0, stream>>>(
-      mean_batch, len, var_batch, mean_acc, batch_size, acc_size, var_acc);
+  estimate_online_var_kernel<<<(dim+1024-1)/1024, 1024, 0, stream>>>(
+      mean_batch, dim, var_batch, mean_acc, batch_size, acc_size, var_acc);
 }
 
 __global__ void estimate_invstd_kernel(
     const float *var,
-    int len,
+    int dim,
     float epsilon,
     float *invstd)
 {
   int idx = threadIdx.x + blockIdx.x * blockDim.x;
-  if (idx < len) {
-    float y = 1.0f / sqrtf(epsilon + var[idx]);
+  if (idx < dim) {
+    float y = rsqrtf(epsilon + var[idx]);
     invstd[idx] = y;
   }
 }
 
 extern "C" void rembrandt_kernel_estimate_invstd(
     const float *var,
-    int len,
+    int dim,
     float epsilon,
     float *invstd,
     cudaStream_t stream)
 {
-  estimate_invstd_kernel<<<(len+1024-1)/1024, 1024, 0, stream>>>(
-      var, len, epsilon, invstd);
+  estimate_invstd_kernel<<<(dim+1024-1)/1024, 1024, 0, stream>>>(
+      var, dim, epsilon, invstd);
 }

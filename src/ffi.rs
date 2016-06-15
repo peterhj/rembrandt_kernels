@@ -31,6 +31,72 @@ extern "C" {
       stream:       cudaStream_t,
   );
 
+  pub fn rembrandt_conv_diag_affine_white_fwd_batch(
+      in_act:       *const f32,
+      spatial_dim:  c_int,
+      num_channels: c_int,
+      batch_size:   c_int,
+      mean:         *const f32,
+      istd:         *const f32,
+      out_act:      *mut f32,
+      stream:       cudaStream_t,
+  );
+  pub fn rembrandt_conv_diag_affine_fwd_batch(
+      in_act:       *const f32,
+      spatial_dim:  c_int,
+      num_channels: c_int,
+      batch_size:   c_int,
+      scale:        *const f32,
+      bias:         *const f32,
+      out_act:      *mut f32,
+      stream:       cudaStream_t,
+  );
+  pub fn rembrandt_conv_diag_affine_fwd_inplace_batch(
+      out_act:      *mut f32,
+      spatial_dim:  c_int,
+      num_channels: c_int,
+      batch_size:   c_int,
+      scale:        *const f32,
+      bias:         *const f32,
+      stream:       cudaStream_t,
+  );
+  pub fn rembrandt_conv_diag_affine_bwd_data_batch(
+      in_act:       *const f32,
+      out_delta:    *const f32,
+      spatial_dim:  c_int,
+      num_channels: c_int,
+      batch_size:   c_int,
+      scale:        *const f32,
+      in_delta:     *mut f32,
+      stream:       cudaStream_t,
+  );
+  pub fn rembrandt_conv_diag_affine_bwd_batch(
+      in_act:       *const f32,
+      out_delta:    *const f32,
+      spatial_dim:  c_int,
+      num_channels: c_int,
+      batch_size:   c_int,
+      scale:        *const f32,
+      scale_grad:   *mut f32,
+      bias_grad:    *mut f32,
+      in_delta:     *mut f32,
+      stream:       cudaStream_t,
+  );
+  pub fn rembrandt_conv_bnorm_bwd_batch(
+      in_act:       *const f32,
+      spatial_dim:  c_int,
+      num_channels: c_int,
+      batch_size:   c_int,
+      out_delta:    *const f32,
+      mean:         *const f32,
+      var:          *const f32,
+      epsilon:      f32,
+      mean_grad:    *mut f32,
+      var_grad:     *mut f32,
+      in_delta:     *mut f32,
+      stream:       cudaStream_t,
+  );
+
   pub fn rembrandt_kernel_estimate_conv_mean_batch(
       src:          *const f32,
       spatial_dim:  c_int,
