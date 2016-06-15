@@ -76,23 +76,31 @@ __global__ void estimate_conv_mean_fast2_batch_kernel(
   }
   __syncthreads();
   if (c < num_channels && batch_idx < batch_size) {
-    if (bank_idx % 2 == 0) {
+    if (threadIdx.x % 2 == 0) {
       mean_cache[bank_idx] += mean_cache[bank_idx+1];
     }
-    __syncthreads();
-    if (bank_idx % 4 == 0) {
+  }
+  __syncthreads();
+  if (c < num_channels && batch_idx < batch_size) {
+    if (threadIdx.x % 4 == 0) {
       mean_cache[bank_idx] += mean_cache[bank_idx+2];
     }
-    __syncthreads();
-    if (bank_idx % 8 == 0) {
+  }
+  __syncthreads();
+  if (c < num_channels && batch_idx < batch_size) {
+    if (threadIdx.x % 8 == 0) {
       mean_cache[bank_idx] += mean_cache[bank_idx+4];
     }
-    __syncthreads();
-    if (bank_idx % 16 == 0) {
+  }
+  __syncthreads();
+  if (c < num_channels && batch_idx < batch_size) {
+    if (threadIdx.x % 16 == 0) {
       mean_cache[bank_idx] += mean_cache[bank_idx+8];
     }
-    __syncthreads();
-    if (bank_idx % 32 == 0 && u0 < spatial_dim) {
+  }
+  __syncthreads();
+  if (c < num_channels && batch_idx < batch_size) {
+    if (threadIdx.x % 32 == 0 && u0 < spatial_dim) {
       float y = (mean_cache[bank_idx] + mean_cache[bank_idx+16]) / ((float)(spatial_dim) * (float)(batch_size));
       atomicAdd(&mean[c], y);
     }
@@ -211,7 +219,7 @@ __global__ void estimate_conv_var_fast2_batch_kernel(
     int spatial_dim,
     int num_channels,
     int batch_size,
-    const float *mean,
+    const float *__restrict__ mean,
     float *var)
 {
   __shared__ float var_cache[1024+32];
@@ -223,7 +231,7 @@ __global__ void estimate_conv_var_fast2_batch_kernel(
   int u0 = warp_idx + ((idx / (32 * num_channels)) % block_spatial_dim) * (16*32);
   int batch_idx = idx / (32 * num_channels * block_spatial_dim);
   if (c < num_channels && u0 < spatial_dim && batch_idx < batch_size) {
-    float mean_c = mean[c] / ((float)(batch_size));
+    float mean_c = mean[c];
     float y = 0.0f;
     int i0 = c * spatial_dim + batch_idx * spatial_dim * num_channels;
     int u_limit = min(spatial_dim, u0 + 16*32);
@@ -238,23 +246,31 @@ __global__ void estimate_conv_var_fast2_batch_kernel(
   }
   __syncthreads();
   if (c < num_channels && batch_idx < batch_size) {
-    if (bank_idx % 2 == 0) {
+    if (threadIdx.x % 2 == 0) {
       var_cache[bank_idx] += var_cache[bank_idx+1];
     }
-    __syncthreads();
-    if (bank_idx % 4 == 0) {
+  }
+  __syncthreads();
+  if (c < num_channels && batch_idx < batch_size) {
+    if (threadIdx.x % 4 == 0) {
       var_cache[bank_idx] += var_cache[bank_idx+2];
     }
-    __syncthreads();
-    if (bank_idx % 8 == 0) {
+  }
+  __syncthreads();
+  if (c < num_channels && batch_idx < batch_size) {
+    if (threadIdx.x % 8 == 0) {
       var_cache[bank_idx] += var_cache[bank_idx+4];
     }
-    __syncthreads();
-    if (bank_idx % 16 == 0) {
+  }
+  __syncthreads();
+  if (c < num_channels && batch_idx < batch_size) {
+    if (threadIdx.x % 16 == 0) {
       var_cache[bank_idx] += var_cache[bank_idx+8];
     }
-    __syncthreads();
-    if (bank_idx % 32 == 0 && u0 < spatial_dim) {
+  }
+  __syncthreads();
+  if (c < num_channels && batch_idx < batch_size) {
+    if (threadIdx.x % 32 == 0 && u0 < spatial_dim) {
       float y = (var_cache[bank_idx] + var_cache[bank_idx+16]) / ((float)(spatial_dim-1) * (float)(batch_size-1));
       atomicAdd(&var[c], y);
     }
