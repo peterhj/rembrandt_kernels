@@ -57,18 +57,27 @@ __global__ void estimate_conv_mean_fast2_batch_kernel(
   __shared__ float mean_cache[1024+32];
   int idx = threadIdx.x + blockIdx.x * blockDim.x;
   int bank_idx = OFFSET_BANK(threadIdx.x);
-  int block_spatial_dim = (spatial_dim+16*32-1)/(16*32);
+  int block_spatial_dim = (spatial_dim+8*32-1)/(8*32);
   int warp_idx = idx % 32;
   int c = (idx / 32) % num_channels;
-  int u0 = warp_idx + ((idx / (32 * num_channels)) % block_spatial_dim) * (16*32);
+  //int u0 = warp_idx + ((idx / (32 * num_channels)) % block_spatial_dim) * (8*32);
+  int u0 = ((idx / (32 * num_channels)) % block_spatial_dim) * (8*32);
   int batch_idx = idx / (32 * num_channels * block_spatial_dim);
   if (c < num_channels && u0 < spatial_dim && batch_idx < batch_size) {
     float y = 0.0f;
-    int i0 = c * spatial_dim + batch_idx * spatial_dim * num_channels;
-    int u_limit = min(spatial_dim, u0 + 16*32);
+    /*int i0 = c * spatial_dim + batch_idx * spatial_dim * num_channels;
+    int u_limit = min(spatial_dim, u0 + 8*32);
     for (int u = u0; u < u_limit; u += 32) {
       int i = i0 + u;
       y += src[i];
+    }*/
+    int i0 = warp_idx + u0 + c * spatial_dim + batch_idx * spatial_dim * num_channels;
+    int i_limit = i0 + min(spatial_dim - warp_idx - u0, 8*32);
+    for (int v = 0; v < 8*32; v += 32) {
+      int i = i0 + v;
+      if (i < i_limit) {
+        y += src[i];
+      }
     }
     mean_cache[bank_idx] = y;
   } else {
@@ -129,7 +138,7 @@ extern "C" void rembrandt_kernel_estimate_conv_mean_fast_batch(
     cudaStream_t stream)
 {
   //int n = ((spatial_dim+32-1)/32) * channels * batch_size;
-  int block_spatial_dim = (spatial_dim+16*32-1)/(16*32);
+  int block_spatial_dim = (spatial_dim+8*32-1)/(8*32);
   int n = 32 * num_channels * block_spatial_dim * batch_size;
   estimate_conv_mean_fast2_batch_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(
       src, spatial_dim, num_channels, batch_size, mean);
@@ -225,20 +234,30 @@ __global__ void estimate_conv_var_fast2_batch_kernel(
   __shared__ float var_cache[1024+32];
   int idx = threadIdx.x + blockIdx.x * blockDim.x;
   int bank_idx = OFFSET_BANK(threadIdx.x);
-  int block_spatial_dim = (spatial_dim+16*32-1)/(16*32);
+  int block_spatial_dim = (spatial_dim+8*32-1)/(8*32);
   int warp_idx = idx % 32;
   int c = (idx / 32) % num_channels;
-  int u0 = warp_idx + ((idx / (32 * num_channels)) % block_spatial_dim) * (16*32);
+  //int u0 = warp_idx + ((idx / (32 * num_channels)) % block_spatial_dim) * (8*32);
+  int u0 = ((idx / (32 * num_channels)) % block_spatial_dim) * (8*32);
   int batch_idx = idx / (32 * num_channels * block_spatial_dim);
   if (c < num_channels && u0 < spatial_dim && batch_idx < batch_size) {
     float mean_c = mean[c];
     float y = 0.0f;
-    int i0 = c * spatial_dim + batch_idx * spatial_dim * num_channels;
-    int u_limit = min(spatial_dim, u0 + 16*32);
+    /*int i0 = c * spatial_dim + batch_idx * spatial_dim * num_channels;
+    int u_limit = min(spatial_dim, u0 + 8*32);
     for (int u = u0; u < u_limit; u += 32) {
       int i = i0 + u;
       float delta = src[i] - mean_c;
       y += delta * delta;
+    }*/
+    int i0 = warp_idx + u0 + c * spatial_dim + batch_idx * spatial_dim * num_channels;
+    int i_limit = i0 + min(spatial_dim - warp_idx - u0, 8*32);
+    for (int v = 0; v < 8*32; v += 32) {
+      int i = i0 + v;
+      if (i < i_limit) {
+        float delta = src[i] - mean_c;
+        y += delta * delta;
+      }
     }
     var_cache[bank_idx] = y;
   } else {
@@ -301,7 +320,7 @@ extern "C" void rembrandt_kernel_estimate_conv_var_fast_batch(
     cudaStream_t stream)
 {
   //int n = ((spatial_dim+32-1)/32) * channels * batch_size;
-  int block_spatial_dim = (spatial_dim+16*32-1)/(16*32);
+  int block_spatial_dim = (spatial_dim+8*32-1)/(8*32);
   int n = 32 * num_channels * block_spatial_dim * batch_size;
   estimate_conv_var_fast2_batch_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(
       src, spatial_dim, num_channels, batch_size, mean, var);
@@ -348,7 +367,7 @@ __global__ void estimate_invstd_kernel(
 {
   int idx = threadIdx.x + blockIdx.x * blockDim.x;
   if (idx < dim) {
-    float y = rsqrtf(epsilon + var[idx]);
+    float y = rsqrtf(var[idx] + epsilon);
     invstd[idx] = y;
   }
 }
