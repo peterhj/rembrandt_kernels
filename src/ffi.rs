@@ -71,6 +71,15 @@ extern "C" {
       bias:         *const f32,
       stream:       cudaStream_t,
   );
+  pub fn rembrandt_conv_diag_linear_fwd_batch(
+      in_act:       *const f32,
+      spatial_dim:  c_int,
+      num_channels: c_int,
+      batch_size:   c_int,
+      scale:        *const f32,
+      out_act:      *mut f32,
+      stream:       cudaStream_t,
+  );
   pub fn rembrandt_conv_diag_affine_bwd_data_batch(
       in_act:       *const f32,
       spatial_dim:  c_int,
@@ -105,6 +114,31 @@ extern "C" {
       mean_grad:    *mut f32,
       var_grad:     *mut f32,
       in_delta:     *mut f32,
+      stream:       cudaStream_t,
+  );
+  pub fn rembrandt_conv_bnorm_rfwd_var_batch(
+      in_act:       *const f32,
+      spatial_dim:  c_int,
+      num_channels: c_int,
+      batch_size:   c_int,
+      in_r_act:     *const f32,
+      mean:         *const f32,
+      r_mean:       *const f32,
+      r_var:        *mut f32,
+      stream:       cudaStream_t,
+  );
+  pub fn rembrandt_conv_bnorm_rfwd_batch(
+      in_act:       *const f32,
+      spatial_dim:  c_int,
+      num_channels: c_int,
+      batch_size:   c_int,
+      in_r_act:     *const f32,
+      mean:         *const f32,
+      r_mean:       *const f32,
+      var:          *const f32,
+      r_var:        *const f32,
+      epsilon:      f32,
+      out_r_act:    *mut f32,
       stream:       cudaStream_t,
   );
 

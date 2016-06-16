@@ -126,6 +126,39 @@ extern "C" void rembrandt_conv_diag_affine_fwd_inplace_batch(
       out_act, spatial_dim, num_channels, batch_size, scale, bias, out_act);
 }
 
+__global__ void conv_diag_linear_fwd_batch_kernel(
+    const float *in_act,
+    int spatial_dim,
+    int num_channels,
+    int batch_size,
+    const float *__restrict__ scale,
+    float *out_act)
+{
+  int idx = threadIdx.x + blockIdx.x * blockDim.x;
+  int u = idx % spatial_dim;
+  int c = (idx / spatial_dim) % num_channels;
+  int batch_idx = idx / (spatial_dim * num_channels);
+  if (u < spatial_dim && c < num_channels && batch_idx < batch_size) {
+    float gamma = scale[c];
+    float y = gamma * in_act[idx];
+    out_act[idx] = y;
+  }
+}
+
+extern "C" void rembrandt_conv_diag_linear_fwd_batch(
+    const float *in_act,
+    int spatial_dim,
+    int num_channels,
+    int batch_size,
+    const float *scale,
+    float *out_act,
+    cudaStream_t stream)
+{
+  int n = spatial_dim * num_channels * batch_size;
+  conv_diag_linear_fwd_batch_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(
+      in_act, spatial_dim, num_channels, batch_size, scale, out_act);
+}
+
 __global__ void conv_diag_affine_bwd_data_batch_kernel(
     const float *in_act,
     int spatial_dim,
@@ -534,7 +567,7 @@ __global__ void conv_bnorm_rfwd_var_batch_kernel(
     int spatial_dim,
     int num_channels,
     int batch_size,
-    const float *__restrict__ in_r_act,
+    const float *in_r_act,
     const float *__restrict__ mean,
     const float *__restrict__ r_mean,
     float *r_var)
@@ -594,6 +627,66 @@ __global__ void conv_bnorm_rfwd_var_batch_kernel(
       atomicAdd(&r_var[c], y);
     }
   }
+}
+
+extern "C" void rembrandt_conv_bnorm_rfwd_var_batch(
+    const float *in_act,
+    int spatial_dim,
+    int num_channels,
+    int batch_size,
+    const float *in_r_act,
+    const float *mean,
+    const float *r_mean,
+    float *r_var,
+    cudaStream_t stream)
+{
+  int block_spatial_dim = (spatial_dim+16*32-1)/(16*32);
+  int n = 32 * num_channels * block_spatial_dim * batch_size;
+  conv_bnorm_rfwd_var_batch_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(
+      in_act, spatial_dim, num_channels, batch_size, in_r_act, mean, r_mean, r_var);
+}
+
+__global__ void conv_bnorm_rfwd_batch_kernel(
+    const float *in_act,
+    int spatial_dim,
+    int num_channels,
+    int batch_size,
+    const float *in_r_act,
+    const float *__restrict__ mean,
+    const float *__restrict__ r_mean,
+    const float *__restrict__ var,
+    const float *__restrict__ r_var,
+    float epsilon,
+    float *out_r_act)
+{
+  int idx = threadIdx.x + blockIdx.x * blockDim.x;
+  int u = idx % spatial_dim;
+  int c = (idx / spatial_dim) % num_channels;
+  int batch_idx = idx / (spatial_dim * num_channels);
+  if (u < spatial_dim && c < num_channels && batch_idx < batch_size) {
+    float sigma = var[c];
+    float y = rsqrtf(sigma + epsilon) * ((in_r_act[idx] - r_mean[c]) - 0.5f / (sigma + epsilon) * r_var[c] * (in_act[idx] - mean[c]));
+    out_r_act[idx] = y;
+  }
+}
+
+extern "C" void rembrandt_conv_bnorm_rfwd_batch(
+    const float *in_act,
+    int spatial_dim,
+    int num_channels,
+    int batch_size,
+    const float *in_r_act,
+    const float *mean,
+    const float *r_mean,
+    const float *var,
+    const float *r_var,
+    float epsilon,
+    float *out_r_act,
+    cudaStream_t stream)
+{
+  int n = spatial_dim * num_channels * batch_size;
+  conv_bnorm_rfwd_batch_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(
+      in_act, spatial_dim, num_channels, batch_size, in_r_act, mean, r_mean, var, r_var, epsilon, out_r_act);
 }
 
 __global__ void conv_bnorm_rbwd_var_batch_kernel(
