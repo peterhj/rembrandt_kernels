@@ -204,6 +204,20 @@ extern "C" {
       stream:       cudaStream_t,
   );
 
+  pub fn rembrandt_rect_fwd(
+      in_act:       *const f32,
+      dim:          c_int,
+      out_act:      *mut f32,
+      stream:       cudaStream_t,
+  );
+  pub fn rembrandt_rect_bwd(
+      in_act:       *const f32,
+      dim:          c_int,
+      out_delta:    *const f32,
+      in_delta:     *mut f32,
+      stream:       cudaStream_t,
+  );
+
   pub fn rembrandt_kernel_softmax_kl_loss_fwd_batch(
       out_act:      *const f32,
       frame_len:    c_int,
