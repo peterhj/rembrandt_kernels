@@ -102,6 +102,19 @@ extern "C" {
       in_delta:     *mut f32,
       stream:       cudaStream_t,
   );
+  pub fn rembrandt_conv_bnorm_inferfwd_batch(
+      in_act:       *const f32,
+      spatial_dim:  c_int,
+      num_channels: c_int,
+      batch_size:   c_int,
+      mean:         *const f32,
+      var:          *const f32,
+      scale:        *const f32,
+      bias:         *const f32,
+      epsilon:      f32,
+      out_act:      *mut f32,
+      stream:       cudaStream_t,
+  );
   pub fn rembrandt_conv_bnorm_bwd_batch(
       in_act:       *const f32,
       spatial_dim:  c_int,

@@ -9,7 +9,11 @@ __global__ void rect_fwd_kernel(
   int idx = threadIdx.x + blockIdx.x * blockDim.x;
   if (idx < dim) {
     float x = in_act[idx];
-    out_act[idx] = x * (x > 0.0f);
+    if (x > 0.0f) {
+      out_act[idx] = x;
+    } else {
+      out_act[idx] = 0.0f;
+    }
   }
 }
 
@@ -31,7 +35,12 @@ __global__ void rect_bwd_kernel(
 {
   int idx = threadIdx.x + blockIdx.x * blockDim.x;
   if (idx < dim) {
-    in_delta[idx] = out_delta[idx] * (in_act[idx] > 0.0f);
+    float x = in_act[idx];
+    if (x > 0.0f) {
+      in_delta[idx] = out_delta[idx];
+    } else {
+      in_delta[idx] = 0.0f;
+    }
   }
 }
 

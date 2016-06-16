@@ -367,6 +367,50 @@ __global__ void conv_diag_linear_bwd_batch_kernel(
   }
 }
 
+__global__ void conv_bnorm_inferfwd_batch_kernel(
+    const float *in_act,
+    int spatial_dim,
+    int num_channels,
+    int batch_size,
+    const float *__restrict__ mean,
+    const float *__restrict__ var,
+    const float *__restrict__ scale,
+    const float *__restrict__ bias,
+    float epsilon,
+    float *out_act)
+{
+  int idx = threadIdx.x + blockIdx.x * blockDim.x;
+  int u = idx % spatial_dim;
+  int c = (idx / spatial_dim) % num_channels;
+  int batch_idx = idx / (spatial_dim * num_channels);
+  if (u < spatial_dim && c < num_channels && batch_idx < batch_size) {
+    float m = mean[c];
+    float v = var[c];
+    float s = scale[c];
+    float b = bias[c];
+    float y = (in_act[idx] - m) * rsqrtf(v + epsilon) * s + b;
+    out_act[idx] = y;
+  }
+}
+
+extern "C" void rembrandt_conv_bnorm_inferfwd_batch(
+    const float *in_act,
+    int spatial_dim,
+    int num_channels,
+    int batch_size,
+    const float *mean,
+    const float *var,
+    const float *scale,
+    const float *bias,
+    float epsilon,
+    float *out_act,
+    cudaStream_t stream)
+{
+  int n = spatial_dim * num_channels * batch_size;
+  conv_bnorm_inferfwd_batch_kernel<<<(n+1024-1)/1024, 1024, 0, stream>>>(
+      in_act, spatial_dim, num_channels, batch_size, mean, var, scale, bias, epsilon, out_act);
+}
+
 __global__ void conv_bnorm_bwd_var_batch_kernel(
     const float *in_act,
     int spatial_dim,
