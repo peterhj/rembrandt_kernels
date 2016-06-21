@@ -251,20 +251,20 @@ extern "C" {
       in_delta:     *mut f32,
       stream:       cudaStream_t,
   );
+  // XXX: This actually computes the "normalized" R-activation.
   pub fn rembrandt_kernel_softmax_r_fwd_batch(
-      out_act:      *const f32,
+      in_r_act:     *const f32,
       frame_len:    c_int,
       batch_size:   c_int,
-      in_r_act:     *const f32,
       mix_in_r_act: *const f32,
       out_r_act:    *mut f32,
       stream:       cudaStream_t,
   );
+  // XXX: This actually uses the "normalized" R-activation.
   pub fn rembrandt_kernel_softmax_kl_loss_r_fwd_batch(
-      out_act:      *const f32,
+      out_r_act:    *const f32,
       frame_len:    c_int,
       batch_size:   c_int,
-      out_r_act:    *const f32,
       label_cats:   *const i32,
       r_weights:    *const f32,
       out_r_loss:   *mut f32,
