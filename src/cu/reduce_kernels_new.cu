@@ -18,20 +18,22 @@ __global__ void inner_prod_blockreduce_batch_kernel(
   int i = tid + block * len;
   if (tid < len && block < batch_size) {
     cache[OFFSET_BANK(tid)] = ws[i] * xs[i];
-    __syncthreads();
-    for (int s = 1; s < blockDim.x; s *= 2) {
-      if (tid % (2*s) == 0 && (tid + s) < len) {
-        cache[OFFSET_BANK(tid)] += cache[OFFSET_BANK(tid + s)];
-      }
-      __syncthreads();
+  } else {
+    cache[OFFSET_BANK(tid)] = 0.0f;
+  }
+  __syncthreads();
+  for (int s = 1; s < blockDim.x; s *= 2) {
+    if (tid % (2*s) == 0 && (tid + s) < len) {
+      cache[OFFSET_BANK(tid)] += cache[OFFSET_BANK(tid + s)];
     }
-    if (tid == 0) {
-      if (alpha != 0.0f) {
-        float sum_0 = sum[block];
-        sum[block] = alpha * sum_0 + cache[0];
-      } else {
-        sum[block] = cache[0];
-      }
+    __syncthreads();
+  }
+  if (tid == 0) {
+    if (alpha != 0.0f) {
+      float sum_0 = sum[block];
+      sum[block] = alpha * sum_0 + cache[0];
+    } else {
+      sum[block] = cache[0];
     }
   }
 }

@@ -119,7 +119,7 @@ __global__ void softmax_kl_loss_r_fwd_batch_kernel(
     int dim,
     int batch_size,
     const int32_t *label_cats,
-    const float *r_weights,
+    //const float *r_weights,
     float *out_r_loss)
 {
   int batch_idx = threadIdx.x + blockIdx.x * blockDim.x;
@@ -127,7 +127,8 @@ __global__ void softmax_kl_loss_r_fwd_batch_kernel(
     int label_i = label_cats[batch_idx];
     int label_idx = label_i + batch_idx * dim;
     //float x = -out_r_act[label_idx] / out_act[label_idx] * r_weights[batch_idx];
-    float x = -out_r_act[label_idx] * r_weights[batch_idx];
+    //float x = -out_r_act[label_idx] * r_weights[batch_idx];
+    float x = -out_r_act[label_idx];
     out_r_loss[batch_idx] = x;
   }
 }
@@ -137,7 +138,7 @@ extern "C" void rembrandt_kernel_softmax_kl_loss_r_fwd_batch(
     int dim,
     int batch_size,
     const int32_t *label_cats,
-    const float *r_weights,
+    //const float *r_weights,
     float *out_r_loss,
     cudaStream_t stream)
 {
@@ -146,6 +147,6 @@ extern "C" void rembrandt_kernel_softmax_kl_loss_r_fwd_batch(
       out_r_act,
       dim, batch_size,
       label_cats,
-      r_weights,
+      //r_weights,
       out_r_loss);
 }
