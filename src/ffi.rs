@@ -154,6 +154,49 @@ extern "C" {
       out_r_act:    *mut f32,
       stream:       cudaStream_t,
   );
+  pub fn rembrandt_conv_smooth_bnorm_fwd_mean_var_batch(
+      in_act:       *const f32,
+      spatial_dim:  c_int,
+      num_channels: c_int,
+      batch_size:   c_int,
+      prev_mean:    *const f32,
+      alpha:        f32,
+      mean:         *mut f32,
+      var:          *mut f32,
+      stream:       cudaStream_t,
+  );
+  pub fn rembrandt_conv_smooth_bnorm_bwd_batch(
+      in_act:       *const f32,
+      spatial_dim:  c_int,
+      num_channels: c_int,
+      batch_size:   c_int,
+      out_delta:    *const f32,
+      prev_mean:    *const f32,
+      mean:         *const f32,
+      var:          *const f32,
+      epsilon:      f32,
+      alpha:        f32,
+      mean_grad:    *mut f32,
+      var_grad:     *mut f32,
+      in_delta:     *mut f32,
+      stream:       cudaStream_t,
+  );
+  pub fn rembrandt_conv_smooth_bnorm_rfwd_batch(
+      in_act:       *const f32,
+      spatial_dim:  c_int,
+      num_channels: c_int,
+      batch_size:   c_int,
+      in_r_act:     *const f32,
+      prev_mean:    *const f32,
+      mean:         *const f32,
+      var:          *const f32,
+      epsilon:      f32,
+      alpha:        f32,
+      r_mean:       *mut f32,
+      r_var:        *mut f32,
+      out_r_act:    *mut f32,
+      stream:       cudaStream_t,
+  );
 
   pub fn rembrandt_kernel_estimate_conv_mean_batch(
       src:          *const f32,
