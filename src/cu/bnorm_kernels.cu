@@ -433,12 +433,13 @@ __global__ void conv_bnorm_bwd_var_batch_kernel(
   if (c < num_channels && u0 < spatial_dim && batch_idx < batch_size) {
     float mu = mean[c];
     float sigma = var[c];
+    float inv_sqrt_sigma = rsqrtf(sigma + epsilon);
     float d_sigma = 0.0f;
     int i0 = c * spatial_dim + batch_idx * spatial_dim * num_channels;
     int u_limit = min(spatial_dim, u0 + 16*32);
     for (int u = u0; u < u_limit; u += 32) {
       int i = i0 + u;
-      d_sigma += out_delta[i] * -0.5f * rsqrtf(sigma + epsilon) / (sigma + epsilon) * (in_act[i] - mu);
+      d_sigma += out_delta[i] * -0.5f * inv_sqrt_sigma / (sigma + epsilon) * (in_act[i] - mu);
     }
     d_sigma_cache[bank_idx] = d_sigma;
   } else {
@@ -501,13 +502,14 @@ __global__ void conv_bnorm_bwd_mean_batch_kernel(
     float inv_var_norm = 1.0f / ((float)(spatial_dim - 1) * (float)(batch_size - 1));
     float mu = mean[c];
     float sigma = var[c];
+    float inv_sqrt_sigma = rsqrtf(sigma + epsilon);
     float d_sigma = var_grad[c];
     float d_mu = 0.0f;
     int i0 = c * spatial_dim + batch_idx * spatial_dim * num_channels;
     int u_limit = min(spatial_dim, u0 + 16*32);
     for (int u = u0; u < u_limit; u += 32) {
       int i = i0 + u;
-      d_mu += out_delta[i] * -rsqrtf(sigma + epsilon) + d_sigma * -2.0f * inv_var_norm * (in_act[i] - mu);
+      d_mu += out_delta[i] * -inv_sqrt_sigma + d_sigma * -2.0f * inv_var_norm * (in_act[i] - mu);
     }
     d_mu_cache[bank_idx] = d_mu;
   } else {
